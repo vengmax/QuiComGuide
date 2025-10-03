@@ -9,25 +9,50 @@ import com.wllcom.quicomguide.ui.screens.*
 
 @Composable
 fun AppNavHost(navController: NavHostController, paddingValues: PaddingValues) {
-    NavHost(navController = navController, startDestination = Screen.Home.route) {
-        composable(Screen.Home.route) {
-            HomeScreen(navController = navController, contentPadding = paddingValues)
-        }
-        composable(Screen.Tests.route) {
-            TestsScreen(contentPadding = paddingValues)
-        }
-        composable(Screen.Library.route) {
-            LibraryScreen(navController = navController, contentPadding = paddingValues)
-        }
-        composable(Screen.Profile.route) {
-            ProfileScreen(contentPadding = paddingValues)
-        }
-        composable("material/{materialId}") { backStackEntry ->
-            val id = backStackEntry.arguments?.getString("materialId")
-            MaterialDetailScreen(
-                materialId = id,
+    NavHost(navController = navController, startDestination = "home") {
+        composable("home") {
+            HomeScreen(
                 navController = navController,
                 contentPadding = paddingValues
+            )
+        }
+        composable("tests") { TestsScreen(contentPadding = paddingValues) }
+        composable("library") {
+            LibraryScreen(
+                navController = navController,
+                contentPadding = paddingValues
+            )
+        }
+        composable("profile") { ProfileScreen(contentPadding = paddingValues) }
+        composable("group/{groupId}") { backStackEntry ->
+            val groupId = backStackEntry.arguments?.getString("groupId")
+            GroupScreen(
+                navController = navController,
+                groupId = groupId,
+                contentPadding = paddingValues
+            )
+        }
+        composable("material/{materialId}") { backStackEntry ->
+            val materialId = backStackEntry.arguments?.getString("materialId")
+            MaterialDetailScreen(
+                materialId = materialId,
+                navController = navController,
+                contentPadding = paddingValues
+            )
+        }
+        composable("addMaterial") {
+            AddEditMaterialScreen(
+                navController = navController,
+                materialId = null,
+                padding = paddingValues
+            )
+        }
+        composable("editMaterial/{materialId}") { backStackEntry ->
+            val materialId = backStackEntry.arguments?.getString("materialId")
+            AddEditMaterialScreen(
+                navController = navController,
+                materialId = materialId,
+                padding = paddingValues
             )
         }
     }

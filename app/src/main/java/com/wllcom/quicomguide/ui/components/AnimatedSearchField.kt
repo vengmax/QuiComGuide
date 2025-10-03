@@ -1,26 +1,19 @@
 package com.wllcom.quicomguide.ui.components
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,28 +24,19 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Brush.Companion.sweepGradient
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.sin
 
 @Composable
 fun AnimatedSearchField(
@@ -61,7 +45,6 @@ fun AnimatedSearchField(
     modifier: Modifier = Modifier,
     heightDp: Int = 52,
     placeholderText: String = "Умный поиск по материалам",
-    visible: Boolean = true // контролирует смещение (видимоcть)
 ) {
     // ваш список цветов
     val colors = listOf(
@@ -80,9 +63,8 @@ fun AnimatedSearchField(
         )
     )
 
-    // stroke width в dp (для границы)
     val strokeDp = 4.dp
-    val cornerRadius = 24.dp
+    val cornerRadius = 12.dp
 
     // вычисляем интерполированный текущий цвет
     val currentColor: Color = run {
@@ -98,15 +80,13 @@ fun AnimatedSearchField(
             .height(heightDp.dp)
             .background(Color.Transparent)
             .drawBehind {
-                // рисуем простую рамку текущим цветом
                 val strokePx = strokeDp.toPx()
-
                 val glowRadius = 12.dp.toPx()
-
                 val centerY = size.height / 2f
                 val startY = centerY - size.height / 2f - glowRadius
                 val endY = centerY + size.height / 2f + glowRadius
 
+                // Основное свечение
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
@@ -119,10 +99,15 @@ fun AnimatedSearchField(
                     ),
                     topLeft = Offset(max(cornerRadius.toPx(), size.height / 2f), -glowRadius),
                     size = Size(
-                        size.width - glowRadius * 2 - max(cornerRadius.toPx(),size.height / 2f)- 0.5f,
+                        size.width - glowRadius * 2 - max(
+                            cornerRadius.toPx(),
+                            size.height / 2f
+                        ) - 0.5f,
                         size.height + glowRadius * 2
                     ),
                 )
+
+                // Левое свечение
                 clipRect(
                     left = -glowRadius,
                     top = -glowRadius,
@@ -143,6 +128,8 @@ fun AnimatedSearchField(
                         )
                     )
                 }
+
+                // Правое свечение
                 translate(
                     size.width - glowRadius * 2 - max(cornerRadius.toPx(), size.height / 2f),
                     0f
@@ -169,7 +156,7 @@ fun AnimatedSearchField(
                     }
                 }
 
-
+                // Рамка
                 drawRoundRect(
                     color = currentColor,
                     topLeft = Offset.Zero,
@@ -192,8 +179,7 @@ fun AnimatedSearchField(
                 fontWeight = FontWeight.Normal
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()
         ) { innerTextField ->
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 if (query.isEmpty()) {
