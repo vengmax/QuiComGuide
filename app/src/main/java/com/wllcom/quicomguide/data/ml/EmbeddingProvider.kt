@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.FileInputStream
 import org.tensorflow.lite.Interpreter
+import java.io.File
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 import javax.inject.Inject
@@ -35,6 +36,16 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
     private val embedMutex = Mutex()
     private val initMutex = Mutex()
 
+
+    private lateinit var modelPath: String
+    private lateinit var tokenizerPath: String
+    fun setPaths(modelPath: String, tokenizerPath: String) {
+        this.modelPath = modelPath
+        this.tokenizerPath = tokenizerPath
+    }
+
+
+
     suspend fun ensureReady() = initMutex.withLock {
         if (!_isReady.value) {
             initModel()
@@ -53,7 +64,8 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
     }
 
     private fun initModel() {
-        val modelBuffer = loadModelFileFromAssets(tfliteName)
+//        val modelBuffer = loadModelFileFromAssets(tfliteName)
+        val modelBuffer = loadModelFileFromPath(modelPath)
         interpreter = Interpreter(modelBuffer)
 
         checkInputs()
@@ -67,12 +79,9 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
         }
     }
 
-    fun close() {
-        interpreter.close()
-    }
-
     private fun initTokenizer() {
-        tokenizer = Tokenizer(ctx, tokenizerName)
+//        tokenizer = Tokenizer(ctx, tokenizerName)
+        tokenizer = Tokenizer(ctx, tokenizerPath)
         publicTokenizer = tokenizer
     }
 
@@ -124,6 +133,14 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
         return FloatArray(vec.size) { i -> vec[i] / norm }
     }
 
+    private fun loadModelFileFromPath(path: String): MappedByteBuffer {
+        val file = File(path)
+        FileInputStream(file).use { fis ->
+            val channel = fis.channel
+            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size())
+        }
+    }
+
     private fun loadModelFileFromAssets(assetName: String): MappedByteBuffer {
         val fileDescriptor = ctx.assets.openFd(assetName)
         FileInputStream(fileDescriptor.fileDescriptor).use { fis ->
@@ -146,5 +163,9 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
         for (i in 0 until interpreter.outputTensorCount) {
             Log.d("OUTPUT", "${i}: ${interpreter.getOutputTensor(i).name()}")
         }
+    }
+
+    fun close() {
+        interpreter.close()
     }
 }

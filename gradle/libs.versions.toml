@@ -27,6 +27,7 @@ tensorflowLite = "2.17.0"
 tensorflowLiteTaskText = "0.4.4"
 tokenizers = "0.34.0"
 xmlpull = "1.1.3.1"
+zip4j = "2.11.5"
 
 [libraries]
 accompanist-flowlayout = { module = "com.google.accompanist:accompanist-flowlayout", version.ref = "accompanistFlowlayout" }
@@ -70,6 +71,7 @@ tensorflow-lite-task-text = { module = "org.tensorflow:tensorflow-lite-task-text
 tokenizers = { module = "ai.djl.huggingface:tokenizers", version.ref = "tokenizers" }
 xmlpull = { module = "xmlpull:xmlpull", version.ref = "xmlpull" }
 xx = { module = "org.xmlpull:1" }
+zip4j = { module = "net.lingala.zip4j:zip4j", version.ref = "zip4j" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

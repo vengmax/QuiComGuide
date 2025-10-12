@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.huggingface.tokenizers)
     implementation(libs.compose.shimmer)
     implementation(libs.hilt.android)
+    implementation(libs.zip4j)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
     ksp(libs.androidx.room.compiler)

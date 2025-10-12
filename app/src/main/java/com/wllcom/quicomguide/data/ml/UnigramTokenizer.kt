@@ -3,6 +3,7 @@ package com.wllcom.quicomguide.data.ml
 import android.content.Context
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.text.Normalizer
 
@@ -27,9 +28,10 @@ class Tokenizer(context: Context, tokenizerAssetPath: String) {
     private var addPrefixSpace = true
 
     init {
-        val json = context.assets.open(tokenizerAssetPath).use {
-            BufferedReader(InputStreamReader(it)).readText()
-        }
+//        val json = context.assets.open(tokenizerAssetPath).use {
+//            BufferedReader(InputStreamReader(it)).readText()
+//        }
+        val json = File(tokenizerAssetPath).readText()
         val root = JSONObject(json)
 
         // --- PreTokenizer (Metaspace) ---
