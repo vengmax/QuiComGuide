@@ -4,22 +4,43 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.wllcom.quicomguide.data.model.MaterialEntity
-import com.wllcom.quicomguide.data.model.MaterialSectionEntity
+import com.wllcom.quicomguide.data.local.dao.CourseDao
+import com.wllcom.quicomguide.data.local.dao.GroupDao
+import com.wllcom.quicomguide.data.local.dao.MaterialDao
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
+import com.wllcom.quicomguide.data.local.entities.MaterialFts
+import com.wllcom.quicomguide.data.local.entities.MaterialGroupEntity
+import com.wllcom.quicomguide.data.local.entities.CourseEntity
+import com.wllcom.quicomguide.data.local.crossref.MaterialCourseCrossRef
+import com.wllcom.quicomguide.data.local.crossref.MaterialGroupCrossRef
+import com.wllcom.quicomguide.data.local.dao.MaterialQueryDao
+import com.wllcom.quicomguide.data.local.entities.SectionElementChunkEmbeddingEntity
+import com.wllcom.quicomguide.data.local.entities.SectionElementEntity
+import com.wllcom.quicomguide.data.local.entities.SectionEntity
 
 @Database(
-    entities = [MaterialEntity::class, MaterialFts::class, MaterialSectionEntity::class, SectionFts::class],
+    entities = [
+        MaterialEntity::class,
+        MaterialFts::class,
+        SectionEntity::class,
+        SectionElementEntity::class,
+        SectionElementChunkEmbeddingEntity::class,
+        MaterialGroupEntity::class,
+        CourseEntity::class,
+        MaterialGroupCrossRef::class,
+        MaterialCourseCrossRef::class,
+    ],
     version = 1,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun materialDao(): MaterialDao
-    abstract fun sectionDao(): SectionDao
-    abstract fun sectionFtsDao(): SectionFtsDao
+    abstract fun materialQueryDao(): MaterialQueryDao
+    abstract fun groupDao(): GroupDao
+    abstract fun courseDao(): CourseDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
+        @Volatile private var INSTANCE: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {

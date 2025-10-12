@@ -17,35 +17,62 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Preview
+@Composable
+fun PreviewTopBarWithSearch(){
+    TopBarWithSearch({})
+}
+
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun TopBarWithSearch(
     title: @Composable () -> Unit,
     navigationIcon: @Composable () -> Unit = {},
-    actions: @Composable RowScope.() -> Unit = {}
+    actions: @Composable RowScope.() -> Unit = {},
+    query: String = "",
+    onQueryChange: (String) -> Unit = {},
+    onDebouncedQuery: (String) -> Unit = {},
+    debounceMs: Long = 700L
 ) {
     var isSearching by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(query, debounceMs) {
+        snapshotFlow { query }
+            .map { it.trim() }
+            .distinctUntilChanged()
+            .debounce(debounceMs)
+            .collectLatest { debounced ->
+                onDebouncedQuery(debounced)
+            }
+    }
 
     if (isSearching) {
         TopAppBar(
             title = {
                 BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    value = query,
+                    onValueChange = onQueryChange,
                     singleLine = true,
                     textStyle = TextStyle(
                         color = MaterialTheme.colorScheme.onBackground,
@@ -62,7 +89,7 @@ fun TopBarWithSearch(
                         modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        if (searchQuery.isEmpty()) {
+                        if (query.isEmpty()) {
                             Text(
                                 text = "Поиск...",
                                 style = MaterialTheme.typography.bodyLarge,
@@ -89,7 +116,6 @@ fun TopBarWithSearch(
             title = title,
             navigationIcon = navigationIcon,
             actions = {
-                // Кнопка поиска
                 IconButton(onClick = { isSearching = true }) {
                     Icon(Icons.Default.Search, contentDescription = "Search")
                 }

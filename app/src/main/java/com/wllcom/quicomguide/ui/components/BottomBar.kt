@@ -15,6 +15,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.ui.navigation.bottomNavItems
 
+@Preview
+@Composable
+fun PreviewBottomBar() {
+    BottomBar(navController = rememberNavController())
+}
+
 @Composable
 fun BottomBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -33,24 +39,12 @@ fun BottomBar(navController: NavController) {
                     )
                 },
                 label = { Text(screen.title) },
-                selected = currentRoute == screen.route,
+                selected = selected,
                 onClick = {
-                    if (!selected) {
-                        // обычная навигация на вкладку
-                        navController.navigate(screen.route) {
-                            popUpTo(navController.graph.startDestinationId) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    } else {
-                        // Повторный клик на уже выбранную вкладку: возвращаемся на корень этого раздела
-                        // Попробуем "сбросить" стек до этой вкладки, чтобы пользователь оказался в "главном" представлении вкладки.
-                        navController.navigate(screen.route) {
-                            popUpTo(screen.route) {
-                                inclusive = true
-                            }
-                            launchSingleTop = true
-                        }
+                    navController.navigate(screen.route) {
+                        popUpTo(navController.graph.startDestinationId) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 },
                 colors = NavigationBarItemDefaults.colors(
@@ -59,10 +53,4 @@ fun BottomBar(navController: NavController) {
             )
         }
     }
-}
-
-@Preview
-@Composable
-fun PreviewBottomBar() {
-    BottomBar(navController = rememberNavController())
 }

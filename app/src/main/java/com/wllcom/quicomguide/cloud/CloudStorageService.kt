@@ -1,6 +1,6 @@
 package com.wllcom.quicomguide.cloud
 
-import com.wllcom.quicomguide.data.model.MaterialEntity
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 
 interface CloudStorageService {
     suspend fun uploadMaterial(material: MaterialEntity): String?

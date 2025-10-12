@@ -1,23 +1,31 @@
 package com.wllcom.quicomguide.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
+import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Title
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,188 +33,281 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.room.withTransaction
 import com.wllcom.quicomguide.data.local.AppDatabase
-import com.wllcom.quicomguide.data.model.MaterialEntity
-import com.wllcom.quicomguide.data.model.MaterialSectionEntity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
+import com.wllcom.quicomguide.data.local.crossref.MaterialCourseCrossRef
+import com.wllcom.quicomguide.data.local.crossref.MaterialGroupCrossRef
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
+import com.wllcom.quicomguide.data.local.entities.MaterialFts
+import com.wllcom.quicomguide.data.local.entities.SectionElementEntity
+import com.wllcom.quicomguide.data.local.entities.SectionEntity
+import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditMaterialScreen(
     navController: NavController,
+    viewModel: MaterialsViewModel,
     materialId: String? = null,
-    padding: androidx.compose.foundation.layout.PaddingValues
+    padding: PaddingValues
 ) {
-    // 1. Получаем контекст и DB
     val context = LocalContext.current
     val db = AppDatabase.getInstance(context)
     val materialDao = db.materialDao()
-    val sectionDao = db.sectionDao()
+    val sectionDao = db.materialDao()
+    val groupDao = db.groupDao()
+    val courseDao = db.courseDao()
     val scope = rememberCoroutineScope()
 
-    // 2. Состояния формы
     var title by remember { mutableStateOf("") }
-    var xmlContent by remember { mutableStateOf("<material>\n    <!-- ваш XML здесь -->\n</material>") }
-    var editingId by remember { mutableStateOf<Long?>(null) }
+    var xmlValue by remember { mutableStateOf(TextFieldValue("<material>\n    <!-- ваш XML здесь -->\n</material>")) }
 
-    // 3. Группы/курсы: локальные списки (mutableStateList, чтобы UI реагировал)
-    val allGroups = remember { mutableStateListOf<String>() }
-    val allCourses = remember { mutableStateListOf<String>() }
+    // selected crossrefs (many-to-many)
+    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectedCourseIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
-    var groupSelected by remember { mutableStateOf<String?>(null) }
-    var showNewGroupField by remember { mutableStateOf(false) }
-    var newGroupName by remember { mutableStateOf("") }
+    var showTagsInfoDialog by remember { mutableStateOf(false) }
 
-    var courseSelected by remember { mutableStateOf<String?>(null) }
-    var showNewCourseField by remember { mutableStateOf(false) }
-    var newCourseName by remember { mutableStateOf("") }
+    // load groups/courses lists for pickers (UI may use them)
+    val groups by groupDao.getAllFlow().collectAsState(initial = emptyList())
+    val courses by courseDao.getAllFlow().collectAsState(initial = emptyList())
 
-    // 4. Загружаем списки групп/курсов один раз (suspend внутри LaunchedEffect) — НЕ используем collectAsState внутри корутины
-    LaunchedEffect(Unit) {
-        try {
-            // получаем текущие материалы разово и формируем уникальные группы/курсы
-            val mats = materialDao.getAllFlow().first()
-            val groups = mats.mapNotNull { it.groupId }.distinct()
-            val courses = mats.mapNotNull { it.courseId }.distinct()
-            allGroups.clear(); allGroups.addAll(groups)
-            allCourses.clear(); allCourses.addAll(courses)
-        } catch (e: Exception) {
-            // лог — не падаем
-            android.util.Log.e(
-                "AddEditMaterial",
-                "Ошибка при инициализации групп/курсов: ${e.message}",
-                e
-            )
-        }
-    }
-
-    // 5. Если пришёл materialId — подгружаем материал в форму (разовый запуск)
+    // load existing material + crossrefs when editing
     LaunchedEffect(materialId) {
         materialId?.toLongOrNull()?.let { id ->
             try {
-                val mat = materialDao.getById(id)
-                mat?.let {
-                    editingId = it.id
-                    title = it.title
-                    xmlContent = it.xmlContent
-                    groupSelected = it.groupId
-                    courseSelected = it.courseId
+                val mws = materialDao.getMaterialWithSections(id) // returns MaterialWithSections?
+                mws?.let {
+                    title = it.material.title
+                    xmlValue = TextFieldValue(it.material.xmlRaw)
                 }
-            } catch (e: Exception) {
-                android.util.Log.e(
-                    "AddEditMaterial",
-                    "Ошибка при загрузке материала: ${e.message}",
-                    e
+                // read crossrefs via raw query because DAO does not have select for crossrefs
+                val readDb = db.openHelper.readableDatabase
+                // groups
+                val groupCursor = readDb.query(
+                    "SELECT groupId FROM material_group_crossref WHERE materialId = ?",
+                    arrayOf(id.toString())
                 )
+                val gIds = mutableSetOf<Long>()
+                groupCursor.use { c ->
+                    while (c.moveToNext()) {
+                        val gid = c.getLong(0)
+                        gIds.add(gid)
+                    }
+                }
+                selectedGroupIds = gIds
+
+                // courses
+                val courseCursor = readDb.query(
+                    "SELECT courseId FROM material_course_crossref WHERE materialId = ?",
+                    arrayOf(id.toString())
+                )
+                val cIds = mutableSetOf<Long>()
+                courseCursor.use { c ->
+                    while (c.moveToNext()) {
+                        val cid = c.getLong(0)
+                        cIds.add(cid)
+                    }
+                }
+                selectedCourseIds = cIds
+
+            } catch (e: Exception) {
+                // swallow errors (DB may be empty during tests); consider logging
             }
         }
     }
 
-    // 6. UI: Scaffold с TopAppBar и кнопкой Сохранить
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (editingId == null) "Добавить материал" else "Редактировать материал") },
+                title = {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        if (title.isEmpty()) {
+                            Text(
+                                text = "Введите заголовок",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                        BasicTextField(
+                            value = title,
+                            onValueChange = { title = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.Close, contentDescription = "Отмена")
+                        Icon(Icons.Filled.Close, contentDescription = "Закрыть")
                     }
                 },
                 actions = {
+                    // meta action — can open dialog for selecting groups/courses (not implemented here)
+                    IconButton(onClick = { /* TODO: open groups/courses selector */ }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "Группа/Курс")
+                    }
                     IconButton(onClick = {
+                        // Save action
                         if (title.isBlank()) {
                             Toast.makeText(context, "Введите заголовок", Toast.LENGTH_SHORT).show()
                             return@IconButton
                         }
-
-                        // 7. Сохраняем материал — в корутине
                         scope.launch {
-                            // парсим секции на бекграунде
-                            val sections = withContext(Dispatchers.Default) {
-                                parseSectionsFromXml(xmlContent, 0L, UUID.randomUUID().toString())
-                            }
-
                             val now = System.currentTimeMillis()
-                            val uid =
-                                editingId?.let { materialDao.getById(it)?.uid } ?: UUID.randomUUID()
-                                    .toString()
-                            val searchIndex = (title + " " + stripXmlTags(xmlContent)).trim()
+                            val searchIndex = (title + " " + stripXmlTags(xmlValue.text)).trim()
 
-                            val material = MaterialEntity(
-                                id = editingId ?: 0,
-                                uid = uid,
+                            // prepare material entity (note fields in schema: xmlRaw, contentFts)
+                            val materialEntity = MaterialEntity(
+                                id = materialId?.toLongOrNull() ?: 0L,
                                 title = title,
-                                xmlContent = xmlContent,
-                                groupId = if (showNewGroupField) newGroupName.ifBlank { null } else groupSelected,
-                                courseId = if (showNewCourseField) newCourseName.ifBlank { null } else courseSelected,
-                                tags = null,
-                                searchIndex = searchIndex,
+                                xmlRaw = xmlValue.text,
+                                contentFts = searchIndex,
                                 cloudPath = null,
                                 createdAt = now,
                                 updatedAt = now
                             )
 
-                            // 8. Транзакционно сохраняем материал и секции — используем suspend withTransaction
-                            try {
-                                db.withTransaction {
-                                    if (editingId == null) {
-                                        val newId = materialDao.insert(material)
-                                        val sectionsToInsert = sections.mapIndexed { idx, sec ->
-                                            sec.copy(materialId = newId, position = idx)
+                            // parse sections -> returns List<Triple<sectionTitle, orderIndex, List<Pair<elementType, elementContent>>>>
+                            val sectionsForInsert = parseSectionsForInsert(xmlValue.text)
+
+                            // persist inside transaction
+                            db.withTransaction {
+                                if (materialId == null) {
+                                    viewModel.addMaterial(xmlValue.text)
+//                                    // new: use helper to insert material + sections + elements
+//                                    val (newId, _) = materialDao.insertMaterialTreeReturningIds(
+//                                        materialTitle = materialEntity.title,
+//                                        xmlRaw = materialEntity.xmlRaw,
+//                                        sections = sectionsForInsert
+//                                    )
+//                                    // insert FTS row
+//                                    materialDao.insertMaterialFts(
+//                                        MaterialFts(
+//                                            rowid = newId,
+//                                            contentFts = searchIndex
+//                                        )
+//                                    )
+                                    // insert crossrefs if any
+//                                    if (selectedGroupIds.isNotEmpty()) {
+//                                        val refs = selectedGroupIds.map { gid ->
+//                                            MaterialGroupCrossRef(
+//                                                materialId = newId,
+//                                                groupId = gid
+//                                            )
+//                                        }
+//                                        materialDao.insertMaterialGroupCrossRefs(refs)
+//                                    }
+//                                    if (selectedCourseIds.isNotEmpty()) {
+//                                        val refs = selectedCourseIds.map { cid ->
+//                                            MaterialCourseCrossRef(
+//                                                materialId = newId,
+//                                                courseId = cid
+//                                            )
+//                                        }
+//                                        materialDao.insertMaterialCourseCrossRefs(refs)
+//                                    }
+                                } else {
+                                    // update existing material:
+                                    val mid = materialId.toLong()
+                                    // update material row (keep id)
+                                    materialDao.updateMaterial(
+                                        materialEntity.copy(
+                                            id = mid,
+                                            updatedAt = now
+                                        )
+                                    )
+                                    // replace FTS row
+                                    materialDao.insertMaterialFts(
+                                        MaterialFts(
+                                            rowid = mid,
+                                            contentFts = searchIndex
+                                        )
+                                    )
+
+                                    // Delete existing section_elements and sections for this material via SQL (no explicit DAO method provided)
+                                    val writable = db.openHelper.writableDatabase
+                                    // delete elements of sections that belong to material
+                                    writable.execSQL(
+                                        "DELETE FROM section_elements WHERE sectionId IN (SELECT id FROM sections WHERE materialId = ?)",
+                                        arrayOf(mid)
+                                    )
+                                    // delete sections
+                                    writable.execSQL(
+                                        "DELETE FROM sections WHERE materialId = ?",
+                                        arrayOf(mid)
+                                    )
+
+                                    // re-insert sections+elements
+                                    for ((sIdx, sectionTriple) in sectionsForInsert.withIndex()) {
+                                        val (sectionTitle, orderIndex, elements) = sectionTriple
+                                        val sectionId = materialDao.insertSection(
+                                            SectionEntity(
+                                                materialId = mid,
+                                                title = sectionTitle,
+                                                orderIndex = orderIndex
+                                            )
+                                        )
+                                        if (elements.isNotEmpty()) {
+                                            val elementEntities =
+                                                elements.mapIndexed { idx, (etype, econtent) ->
+                                                    SectionElementEntity(
+                                                        sectionId = sectionId,
+                                                        elementType = etype,
+                                                        content = econtent,
+                                                        orderIndex = idx
+                                                    )
+                                                }
+                                            materialDao.insertSectionElements(elementEntities)
                                         }
-                                        sectionDao.deleteByMaterialId(newId)
-                                        sectionDao.insertAll(sectionsToInsert)
-                                    } else {
-                                        materialDao.update(material.copy(id = editingId!!))
-                                        val sectionsToInsert = sections.mapIndexed { idx, sec ->
-                                            sec.copy(materialId = editingId!!, position = idx)
+                                    }
+
+                                    // replace crossrefs
+                                    materialDao.deleteMaterialGroupCrossRefsByMaterial(mid)
+                                    if (selectedGroupIds.isNotEmpty()) {
+                                        val refs = selectedGroupIds.map { gid ->
+                                            MaterialGroupCrossRef(
+                                                materialId = mid,
+                                                groupId = gid
+                                            )
                                         }
-                                        sectionDao.deleteByMaterialId(editingId!!)
-                                        sectionDao.insertAll(sectionsToInsert)
+                                        materialDao.insertMaterialGroupCrossRefs(refs)
+                                    }
+
+                                    materialDao.deleteMaterialCourseCrossRefsByMaterial(mid)
+                                    if (selectedCourseIds.isNotEmpty()) {
+                                        val refs = selectedCourseIds.map { cid ->
+                                            MaterialCourseCrossRef(
+                                                materialId = mid,
+                                                courseId = cid
+                                            )
+                                        }
+                                        materialDao.insertMaterialCourseCrossRefs(refs)
                                     }
                                 }
-                            } catch (e: Exception) {
-                                android.util.Log.e(
-                                    "AddEditMaterial",
-                                    "Ошибка при сохранении: ${e.message}",
-                                    e
-                                )
-                            }
+                            } // withTransaction
 
-                            // Обновляем локальные списки, если добавлены новые группа/курс
-                            if (showNewGroupField && newGroupName.isNotBlank() && !allGroups.contains(
-                                    newGroupName
-                                )
-                            ) {
-                                allGroups.add(newGroupName)
-                            }
-                            if (showNewCourseField && newCourseName.isNotBlank() && !allCourses.contains(
-                                    newCourseName
-                                )
-                            ) {
-                                allCourses.add(newCourseName)
-                            }
-
-                            // Возвращаемся назад после сохранения
                             navController.popBackStack()
                         }
                     }) {
@@ -216,183 +317,222 @@ fun AddEditMaterialScreen(
             )
         }
     ) { innerPadding ->
-        // Контент: верх — метаданные, низ — редактор (weight=1)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(12.dp)
-        ) {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Заголовок") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Dropdown для выбора группы
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Groups dropdown (read-only field + menu)
-                var expandedGroups by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedTextField(
-                        value = groupSelected ?: "",
-                        onValueChange = { /* read-only */ },
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { expandedGroups = !expandedGroups }) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Выбрать группу"
-                                )
-                            }
-                        },
-                        label = { Text("Группа") },
-                        modifier = Modifier.width(220.dp)
-                    )
-                    DropdownMenu(
-                        expanded = expandedGroups,
-                        onDismissRequest = { expandedGroups = false }) {
-                        DropdownMenuItem(text = { Text("Без группы") }, onClick = {
-                            groupSelected = null; expandedGroups = false
-                        })
-                        allGroups.forEach { g ->
-                            DropdownMenuItem(text = { Text(g) }, onClick = {
-                                groupSelected = g; expandedGroups = false
-                            })
-                        }
-                        DropdownMenuItem(text = { Text("Добавить новую...") }, onClick = {
-                            showNewGroupField = true; expandedGroups = false
-                        })
-                    }
-                }
-
-                // Courses dropdown (аналогично)
-                var expandedCourses by remember { mutableStateOf(false) }
-                Box {
-                    OutlinedTextField(
-                        value = courseSelected ?: "",
-                        onValueChange = { /* read-only */ },
-                        readOnly = true,
-                        trailingIcon = {
-                            IconButton(onClick = { expandedCourses = !expandedCourses }) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Выбрать курс"
-                                )
-                            }
-                        },
-                        label = { Text("Курс") },
-                        modifier = Modifier.width(220.dp)
-                    )
-                    DropdownMenu(
-                        expanded = expandedCourses,
-                        onDismissRequest = { expandedCourses = false }) {
-                        DropdownMenuItem(text = { Text("Без курса") }, onClick = {
-                            courseSelected = null; expandedCourses = false
-                        })
-                        allCourses.forEach { c ->
-                            DropdownMenuItem(text = { Text(c) }, onClick = {
-                                courseSelected = c; expandedCourses = false
-                            })
-                        }
-                        DropdownMenuItem(text = { Text("Добавить новый...") }, onClick = {
-                            showNewCourseField = true; expandedCourses = false
-                        })
-                    }
-                }
-            }
-
-            if (showNewGroupField) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newGroupName,
-                    onValueChange = { newGroupName = it },
-                    label = { Text("Название новой группы") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            if (showNewCourseField) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = newCourseName,
-                    onValueChange = { newCourseName = it },
-                    label = { Text("Название нового курса") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Редактор XML занимает большую часть экрана
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                BasicTextField(
-                    value = xmlContent,
-                    onValueChange = { xmlContent = it },
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(12.dp)) {
+            val bg = MaterialTheme.colorScheme.surfaceVariant
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(8.dp),
-                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
-                )
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(bg, shape = RoundedCornerShape(8.dp))
+                        .padding(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = xmlValue,
+                        onValueChange = { xmlValue = it },
+                        modifier = Modifier.fillMaxSize(),
+                        singleLine = false,
+                        maxLines = Int.MAX_VALUE
+                    )
+                }
             }
+
+            // small floating toolbar
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = {
+                            val insert =
+                                "<section>\n  <title>Новый раздел</title>\n  <content>\n\n  </content>\n</section>\n"
+                            xmlValue = insertAtCursor(xmlValue, insert)
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = "Добавить секцию",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            xmlValue = insertAtCursor(xmlValue, "<title>Заголовок</title>\n")
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Filled.Title,
+                                contentDescription = "Добавить title",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            xmlValue = insertAtCursor(xmlValue, "<code>\n// код\n</code>\n")
+                        }, modifier = Modifier.size(36.dp)) {
+                            Icon(
+                                Icons.Filled.Code,
+                                contentDescription = "Добавить code",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                xmlValue = indentSelection(xmlValue)
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.FormatIndentIncrease,
+                                contentDescription = "Отступ",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                xmlValue = unindentSelection(xmlValue)
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.FormatIndentDecrease,
+                                contentDescription = "Убрать отступ",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        VerticalDivider(
+                            modifier = Modifier.height(36.dp),
+                            thickness = DividerDefaults.Thickness,
+                            color = DividerDefaults.color
+                        )
+
+                        IconButton(
+                            onClick = { showTagsInfoDialog = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Info,
+                                contentDescription = "Информация о тэгs",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (showTagsInfoDialog) {
+            TagsInfoDialog(db = db, onDismiss = { showTagsInfoDialog = false })
         }
     }
 }
 
-// Вспомогательные функции
+@Composable
+private fun TagsInfoDialog(db: AppDatabase, onDismiss: () -> Unit) {
+    // In current schema there is no tags column on MaterialEntity.
+    // Show informational dialog to avoid crashing existing code that expected .tags.
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
+        title = { Text("Тэги") },
+        text = {
+            Column {
+                Text("В текущей схеме тэги не хранятся как поле в таблице materials.")
+                Text("Если нужно — можно добавить отдельную таблицу тегов/кросс-рефы и соответствующие DAO-запросы.")
+            }
+        }
+    )
+}
 
+private fun insertAtCursor(value: TextFieldValue, insert: String): TextFieldValue {
+    val start = value.selection.start.coerceAtLeast(0)
+    val end = value.selection.end.coerceAtLeast(0)
+    val newText = StringBuilder(value.text).replace(start, end, insert).toString()
+    val newPos = start + insert.length
+    return TextFieldValue(
+        text = newText,
+        selection = androidx.compose.ui.text.TextRange(newPos, newPos)
+    )
+}
+
+private fun indentSelection(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val start = value.selection.start.coerceAtLeast(0)
+    val end = value.selection.end.coerceAtLeast(0)
+    val (sLine, eLine) = getLineBounds(text, start, end)
+    val lines = text.substring(sLine, eLine).split("\n")
+    val indented = lines.joinToString("\n") { "    $it" }
+    val newText = text.substring(0, sLine) + indented + text.substring(eLine)
+    val newStart = sLine
+    val newEnd = sLine + indented.length
+    return TextFieldValue(
+        text = newText,
+        selection = androidx.compose.ui.text.TextRange(newStart, newEnd)
+    )
+}
+
+private fun unindentSelection(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val start = value.selection.start.coerceAtLeast(0)
+    val end = value.selection.end.coerceAtLeast(0)
+    val (sLine, eLine) = getLineBounds(text, start, end)
+    val lines = text.substring(sLine, eLine).split("\n")
+    val unindented = lines.joinToString("\n") { it.removePrefix("    ").removePrefix("\t") }
+    val newText = text.substring(0, sLine) + unindented + text.substring(eLine)
+    val newStart = sLine
+    val newEnd = sLine + unindented.length
+    return TextFieldValue(
+        text = newText,
+        selection = androidx.compose.ui.text.TextRange(newStart, newEnd)
+    )
+}
+
+private fun getLineBounds(text: String, start: Int, end: Int): Pair<Int, Int> {
+    val sLine = text.lastIndexOf('\n', start - 1).let { if (it == -1) 0 else it + 1 }
+    val eLine = text.indexOf('\n', end).let { if (it == -1) text.length else it + 1 }
+    return Pair(sLine, eLine)
+}
+
+// helper: strip xml tags (simple)
 private fun stripXmlTags(xml: String): String {
     return xml.replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim()
 }
 
-private fun parseSectionsFromXml(
-    xml: String,
-    materialId: Long,
-    materialUid: String
-): List<MaterialSectionEntity> {
-    val sections = mutableListOf<MaterialSectionEntity>()
+/**
+ * Parse XML into the format expected by MaterialDao.insertMaterialTreeReturningIds:
+ * List<Triple<sectionTitle, orderIndex, List<Pair<elementType, elementContent>>>>
+ *
+ * This is a simple parser based on your earlier regexes: extracts <section>..</section>,
+ * inside it looks for <title>..</title> and treats the remainder as a single "content" element.
+ */
+private fun parseSectionsForInsert(xml: String): List<Triple<String, Int, List<Pair<String, String>>>> {
+    val sections = mutableListOf<Triple<String, Int, List<Pair<String, String>>>>()
     val regex = Regex("<section[^>]*>([\\s\\S]*?)</section>", RegexOption.IGNORE_CASE)
     val matches = regex.findAll(xml).toList()
     if (matches.isEmpty()) {
-        sections.add(
-            MaterialSectionEntity(
-                materialId = materialId,
-                uid = "$materialUid-sec-0",
-                title = null,
-                content = xml,
-                position = 0
-            )
-        )
+        // treat full document as single unnamed section
+        val content = xml.trim()
+        sections.add(Triple("", 0, listOf(Pair("content", content))))
         return sections
     }
     var pos = 0
     for (m in matches) {
         val inner = m.groups[1]?.value ?: ""
-        val title = Regex(
-            "<title[^>]*>([\\s\\S]*?)</title>",
-            RegexOption.IGNORE_CASE
-        ).find(inner)?.groups?.get(1)?.value?.trim()
+        val title = Regex("<title[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
+            .find(inner)?.groups?.get(1)?.value?.trim() ?: ""
         val content = inner.trim()
-        sections.add(
-            MaterialSectionEntity(
-                materialId = materialId,
-                uid = "$materialUid-sec-$pos",
-                title = title,
-                content = content,
-                position = pos
-            )
-        )
+        val elements = listOf(Pair("content", content))
+        sections.add(Triple(title, pos, elements))
         pos++
     }
     return sections
 }
+

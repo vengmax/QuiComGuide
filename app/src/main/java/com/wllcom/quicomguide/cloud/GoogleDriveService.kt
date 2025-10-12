@@ -1,18 +1,15 @@
 package com.wllcom.quicomguide.cloud
 
-import com.wllcom.quicomguide.data.model.MaterialEntity
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 import kotlinx.coroutines.delay
 
 class GoogleDriveService : CloudStorageService {
     override suspend fun uploadMaterial(material: MaterialEntity): String? {
-        // TODO: Реализовать реальную загрузку через Google Drive REST / SDK
-        // Для прототипа — имитируем задержку и возвращаем строковый id
         delay(400)
-        return "gdrive://${material.uid}"
+        return "gdrive://1"
     }
 
     override suspend fun deleteMaterial(pathOrId: String) {
-        // TODO
         delay(200)
     }
 
@@ -22,7 +19,6 @@ class GoogleDriveService : CloudStorageService {
     }
 
     override suspend fun listIndexFile(): String? {
-        // TODO: вернуть JSON списка материалов на диске
         delay(200)
         return null
     }

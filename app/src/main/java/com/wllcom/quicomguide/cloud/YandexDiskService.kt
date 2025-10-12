@@ -1,12 +1,12 @@
 package com.wllcom.quicomguide.cloud
 
-import com.wllcom.quicomguide.data.model.MaterialEntity
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 import kotlinx.coroutines.delay
 
 class YandexDiskService : CloudStorageService {
     override suspend fun uploadMaterial(material: MaterialEntity): String? {
         delay(400)
-        return "yadisk://${material.uid}"
+        return "yadisk://1"
     }
 
     override suspend fun deleteMaterial(pathOrId: String) {

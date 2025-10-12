@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.wllcom.quicomguide.data.local.AppDatabase
+import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,10 +38,10 @@ fun MaterialDetailScreen(
     contentPadding: androidx.compose.foundation.layout.PaddingValues
 ) {
     val context = LocalContext.current
-    val dao = AppDatabase.getInstance(context).materialDao()
+    val dao = AppDatabase.getInstance(context).materialQueryDao()
 
     var material by remember {
-        mutableStateOf<com.wllcom.quicomguide.data.model.MaterialEntity?>(
+        mutableStateOf<MaterialEntity?>(
             null
         )
     }
@@ -48,7 +49,7 @@ fun MaterialDetailScreen(
     LaunchedEffect(materialId) {
         materialId?.toLongOrNull()?.let { id ->
             try {
-                material = dao.getById(id)
+                material = dao.getMaterialById(id)
             } catch (e: Exception) {
                 material = null
             }
@@ -81,7 +82,7 @@ fun MaterialDetailScreen(
             val scrollState = rememberScrollState()
             Column(modifier = Modifier.verticalScroll(scrollState)) {
                 Text(
-                    material?.xmlContent ?: "Материал не найден",
+                    material?.xmlRaw ?: "Материал не найден",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(24.dp))

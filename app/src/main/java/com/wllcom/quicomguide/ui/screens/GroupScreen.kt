@@ -2,6 +2,7 @@ package com.wllcom.quicomguide.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -37,25 +38,23 @@ import com.wllcom.quicomguide.ui.components.TopBarWithSearch
 fun GroupScreen(
     navController: NavController,
     groupId: String?,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues
+    contentPadding: PaddingValues
 ) {
-    // Context и DAO
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(context).materialDao()
 
-    // локальный state для запроса поиска внутри группы
     var query by remember { mutableStateOf("") }
 
-    // собираем все материалы как состояние (Flow -> State)
-    val materials by dao.getAllFlow().collectAsState(initial = emptyList())
+    val materials by dao.getAllMaterialsFlow().collectAsState(initial = emptyList())
 
-    // фильтруем материалы по группе и по поиску
-    val filtered = remember(materials, groupId, query) {
-        materials.filter { it.groupId == groupId }.filter {
-            query.isBlank() || it.title.contains(
-                query,
-                ignoreCase = true
-            ) || (it.searchIndex?.contains(query, ignoreCase = true) ?: false)
+    val groupMaterials by dao.getMaterialsByGroupIdFlow(groupId!!.toLong())
+        .collectAsState(initial = emptyList())
+    val filtered = remember(groupMaterials, query) {
+        if (query.isBlank()) groupMaterials
+        else groupMaterials.filter { mat ->
+            mat.title.contains(query, ignoreCase = true) ||
+                    (mat.contentFts?.contains(query, ignoreCase = true) ?: false) ||
+                    mat.xmlRaw.contains(query, ignoreCase = true)
         }
     }
 
@@ -73,18 +72,19 @@ fun GroupScreen(
                     IconButton(onClick = { /* edit group */ }) {
                         Icon(Icons.Default.Edit, contentDescription = "Редактировать")
                     }
-                }
+                },
+                query = query,
+                onQueryChange = { query = it },
+                onDebouncedQuery = { debounced -> query = debounced },
             )
         }
     ) { innerPadding ->
-        // Контент: учитываем innerPadding (важно) и внешний padding
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            // Список материалов в группе — прокручиваемый
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(filtered) { mat ->
                     Card(
@@ -97,7 +97,7 @@ fun GroupScreen(
                             Text(mat.title)
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                mat.searchIndex ?: "",
+                                previewFromXml(mat.xmlRaw),
                                 maxLines = 3,
                                 style = MaterialTheme.typography.bodySmall
                             )
@@ -107,4 +107,9 @@ fun GroupScreen(
             }
         }
     }
+}
+
+private fun previewFromXml(xmlRaw: String): String {
+    val text = xmlRaw.replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim()
+    return if (text.length <= 200) text else text.substring(0, 200) + "..."
 }

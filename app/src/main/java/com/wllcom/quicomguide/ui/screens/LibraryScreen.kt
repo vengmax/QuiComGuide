@@ -38,6 +38,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,58 +53,61 @@ import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.ui.components.FabMenu
 import com.wllcom.quicomguide.ui.components.TopBarWithSearch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+@Preview
+@Composable
+fun PreviewTest() {
+    LibraryScreen(rememberNavController(), PaddingValues())
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
-    // Контекст + DB
     val context = LocalContext.current
     val db = AppDatabase.getInstance(context)
     val dao = db.materialDao()
+    val groupDao = db.groupDao()
+    val courseDao = db.courseDao()
 
-    // Поток материалов -> State
-    val materials by dao.getAllFlow().collectAsState(initial = emptyList())
+    val allMaterialsWithSections by dao.getAllMaterialsFlow().collectAsState(initial = emptyList())
+    val allMaterials =
+        remember(allMaterialsWithSections) { allMaterialsWithSections.map { it.material } }
 
-    // Поисковая строка
+    val groupsList by groupDao.getAllFlow().collectAsState(initial = emptyList())
+    val coursesList by courseDao.getAllFlow().collectAsState(initial = emptyList())
+
     var query by remember { mutableStateOf("") }
-
-    // Drawer state и scope для coroutine
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Список уникальных courseId (без null), используем для Drawer
-    val courses = remember(materials) {
-        val list = materials.mapNotNull { it.courseId }.distinct()
-        list
-    }
+    var selectedCourse by remember { mutableStateOf<Long?>(null) }
 
-    // выбранный курс (null = все курсы)
-    var selectedCourse by remember { mutableStateOf<String?>(null) }
-
-    // Группы рассчитываем исходя из выбранного курса:
-    // если selectedCourse != null — берём материалы только этого курса, затем группируем
-    val groupsMap = remember(materials, selectedCourse) {
-        val filteredByCourse =
-            if (selectedCourse == null) materials else materials.filter { it.courseId == selectedCourse }
-        filteredByCourse.groupBy { it.groupId ?: "ungrouped" }
-    }
-    val groups = remember(groupsMap) { groupsMap.keys.filter { it != "ungrouped" } }
-
-    // Фильтрация списка материалов учитывает и строку поиска, и выбранный курс
-    val filtered = remember(materials, query, selectedCourse) {
-        val byCourse =
-            if (selectedCourse == null) materials else materials.filter { it.courseId == selectedCourse }
-        if (query.isBlank()) byCourse
-        else byCourse.filter {
-            it.title.contains(query, ignoreCase = true) || (it.searchIndex?.contains(
-                query,
-                ignoreCase = true
-            ) ?: false)
+    val materialsFlow = remember(selectedCourse) {
+        if (selectedCourse == null) {
+            dao.getAllMaterialsFlow()
+                .map { list -> list.map { it.material } } // Flow<List<MaterialEntity>>
+        } else {
+            dao.getMaterialsByCourseIdFlow(selectedCourse!!)
         }
     }
 
-    // Drawer: уменьшенная ширина, список курсов + опция "Все курсы" и индикатор выбранного курса
+    val baseMaterials by materialsFlow.collectAsState(initial = emptyList())
+    val baseIds = remember(baseMaterials) { baseMaterials.map { it.id }.toSet() }
+
+    val filtered = remember(baseMaterials, query) {
+        if (query.isBlank()) baseMaterials
+        else baseMaterials.filter { mat ->
+            mat.title.contains(query, ignoreCase = true) ||
+                    (mat.contentFts?.contains(query, ignoreCase = true) ?: false) ||
+                    mat.xmlRaw.contains(query, ignoreCase = true)
+        }
+    }
+
+    val groupedIdsState = remember { mutableStateOf(setOf<Long>()) }
+    LaunchedEffect(selectedCourse, groupsList) { groupedIdsState.value = emptySet() }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -114,28 +118,24 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                     modifier = Modifier.padding(16.dp)
                 )
                 HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                // "Все курсы" опция
                 ListItem(
                     headlineContent = { Text("Все курсы") },
                     supportingContent = { if (selectedCourse == null) Text("Фильтр отключён") },
-                    modifier = Modifier
-                        .clickable {
-                            selectedCourse = null
-                            scope.launch { drawerState.close() }
-                        }
+                    modifier = Modifier.clickable {
+                        selectedCourse = null
+                        scope.launch { drawerState.close() }
+                    }
                 )
                 HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                // Список курсов
                 LazyColumn(modifier = Modifier.fillMaxHeight()) {
-                    items(courses) { courseId ->
+                    items(coursesList) { course ->
                         ListItem(
-                            headlineContent = { Text(courseId) },
-                            supportingContent = { if (selectedCourse == courseId) Text("Выбран") },
-                            modifier = Modifier
-                                .clickable {
-                                    selectedCourse = courseId
-                                    scope.launch { drawerState.close() }
-                                }
+                            headlineContent = { Text(course.name) },
+                            supportingContent = { if (selectedCourse == course.id) Text("Выбран") },
+                            modifier = Modifier.clickable {
+                                selectedCourse = course.id
+                                scope.launch { drawerState.close() }
+                            }
                         )
                     }
                 }
@@ -148,9 +148,10 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                     TopBarWithSearch(
                         title = {
                             if (selectedCourse != null) {
-                                Text("Курс: ${selectedCourse}")
-                            } else
-                                Text("Все курсы")
+                                val name = coursesList.find { it.id == selectedCourse }?.name
+                                    ?: selectedCourse.toString()
+                                Text("Курс: $name")
+                            } else Text("Все курсы")
                         },
                         navigationIcon = {
                             IconButton(onClick = { scope.launch { drawerState.open() } }) {
@@ -158,39 +159,45 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                             }
                         },
                         actions = {
-                            // Кнопка редактирования (заглушка)
-                            IconButton(onClick = { /* TODO: action */ }) {
+                            IconButton(onClick = { /* TODO */ }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Edit")
                             }
-                        }
+                        },
+                        query = query,
+                        onQueryChange = { query = it },
+                        onDebouncedQuery = { debounced -> query = debounced },
                     )
                 }
             ) { innerPadding ->
-                // Контент: учитываем innerPadding (Scaffold) — затем аккуратные внешние отступы
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-
-                    // Сначала группы (в рамках курса, если он выбран)
+                Column(modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)) {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(groups) { groupId ->
-                            val groupMaterials = (groupsMap[groupId] ?: emptyList())
-                            if (groupMaterials.isNotEmpty()) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(8.dp)
-                                ) {
+                        items(groupsList) { group ->
+                            val groupMaterials by dao.getMaterialsByGroupIdFlow(group.id)
+                                .collectAsState(initial = emptyList())
+
+                            val displayedGroupMaterials = remember(groupMaterials, baseIds) {
+                                if (selectedCourse == null) groupMaterials else groupMaterials.filter { it.id in baseIds }
+                            }
+
+                            LaunchedEffect(displayedGroupMaterials) {
+                                if (displayedGroupMaterials.isNotEmpty()) {
+                                    groupedIdsState.value =
+                                        groupedIdsState.value + displayedGroupMaterials.map { it.id }
+                                }
+                            }
+
+                            if (displayedGroupMaterials.isNotEmpty()) {
+                                Column(modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(8.dp)) {
                                     Text(
-                                        text = "Группа: $groupId",
+                                        text = "Группа: ${group.name}",
                                         style = MaterialTheme.typography.titleMedium,
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .clickable {
-                                                navController.navigate("group/$groupId")
-                                            }
+                                            .clickable { navController.navigate("group/${group.id}") }
                                             .background(
                                                 Color.DarkGray.copy(alpha = 0.3f),
                                                 RoundedCornerShape(8.dp)
@@ -198,9 +205,8 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                                             .padding(8.dp)
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    // Горизонтальный ряд превью первых 3 материалов группы (в рамках выбранного курса)
                                     LazyRow {
-                                        itemsIndexed(groupMaterials.take(3)) { _, mat ->
+                                        itemsIndexed(displayedGroupMaterials.take(3)) { _, mat ->
                                             Card(
                                                 modifier = Modifier
                                                     .size(width = 260.dp, height = 120.dp)
@@ -211,7 +217,7 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                                                     Text(mat.title, maxLines = 2)
                                                     Spacer(modifier = Modifier.height(6.dp))
                                                     Text(
-                                                        mat.searchIndex ?: "",
+                                                        previewFromXml(mat.xmlRaw),
                                                         maxLines = 3,
                                                         style = MaterialTheme.typography.bodySmall
                                                     )
@@ -223,7 +229,6 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                             }
                         }
 
-                        // Материалы без группы (и с учетом фильтра по курсу)
                         item {
                             Text(
                                 "Прочие материалы",
@@ -231,7 +236,9 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                                 modifier = Modifier.padding(8.dp)
                             )
                         }
-                        items(filtered.filter { it.groupId == null || it.groupId == "ungrouped" }) { mat ->
+
+                        val ungrouped = filtered.filter { it.id !in groupedIdsState.value }
+                        items(ungrouped) { mat ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -242,7 +249,7 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                                     Text(mat.title)
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        mat.searchIndex ?: "",
+                                        previewFromXml(mat.xmlRaw),
                                         maxLines = 3,
                                         style = MaterialTheme.typography.bodySmall
                                     )
@@ -250,11 +257,11 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
                             }
                         }
 
-                        // Отступ внизу, чтобы FAB не перекрывал контент
                         item { Spacer(modifier = Modifier.height(88.dp)) }
                     }
                 }
             }
+
             FabMenu(
                 modifier = Modifier
                     .fillMaxSize()
@@ -263,9 +270,10 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
             ) { action ->
                 when (action) {
                     "material" -> navController.navigate("addMaterial")
-                    "group" -> { /* открыть создание группы */
+                    "group" -> { /* TODO: create group */
                     }
-                    "course" -> { /* создать курс */
+
+                    "course" -> { /* TODO: create course */
                     }
                 }
             }
@@ -273,8 +281,7 @@ fun LibraryScreen(navController: NavController, contentPadding: PaddingValues) {
     }
 }
 
-@Preview
-@Composable
-fun PreviewTest() {
-    LibraryScreen(rememberNavController(), PaddingValues())
+private fun previewFromXml(xmlRaw: String): String {
+    val text = xmlRaw.replace(Regex("<[^>]*>"), " ").replace(Regex("\\s+"), " ").trim()
+    return if (text.length <= 200) text else text.substring(0, 200) + "..."
 }
