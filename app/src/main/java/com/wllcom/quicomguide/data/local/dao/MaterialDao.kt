@@ -1,6 +1,8 @@
 package com.wllcom.quicomguide.data.local.dao
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -23,6 +25,9 @@ interface MaterialDao {
     suspend fun insertMaterial(material: MaterialEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaterialFts(ft: MaterialFts)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSection(section: SectionEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -31,17 +36,8 @@ interface MaterialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChunkEmbeddings(chunks: List<SectionElementChunkEmbeddingEntity>): List<Long>
 
-    @Update
-    suspend fun updateMaterial(element: MaterialEntity)
-
-    @Update
-    suspend fun updateSectionElement(element: SectionElementEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMaterialFts(ft: MaterialFts)
-
     @Transaction
-    suspend fun insertMaterialTreeReturningIds(
+    suspend fun insertMaterialTree(
         materialTitle: String,
         xmlRaw: String,
         sections: List<Triple<String, Int, List<Pair<String, String>>>>
@@ -64,13 +60,98 @@ interface MaterialDao {
         return materialId to sectionsResult
     }
 
+
+
+    @Update
+    suspend fun updateMaterial(element: MaterialEntity)
+
+    @Update
+    suspend fun updateSection(section: SectionEntity)
+
+    @Update
+    suspend fun updateSectionElement(element: SectionElementEntity)
+
+    @Update
+    suspend fun updateChunkEmbeddings(chunks: SectionElementChunkEmbeddingEntity)
+
+
+
+
+    @Query("SELECT * FROM materials WHERE id = :id")
+    suspend fun getMaterialById(id: Long): MaterialEntity?
+
+    @Query("SELECT * FROM sections WHERE id = :id")
+    suspend fun getSectionById(id: Long): SectionEntity?
+
+    @Query("SELECT * FROM section_elements WHERE id = :id")
+    suspend fun getSectionElementById(id: Long): SectionElementEntity?
+
+    @Query("SELECT rowid FROM materials_fts WHERE materials_fts MATCH :query")
+    suspend fun searchMaterialFtsRowIds(query: String): List<Long>
+
+//    @Transaction
+//    @Query("SELECT rowid, contentFts FROM materials_fts")
+//    suspend fun getAllMaterialsFts(): List<MaterialFts>
+
     @Transaction
     @Query("SELECT * FROM materials WHERE id = :materialId")
     suspend fun getMaterialWithSections(materialId: Long): MaterialWithSections?
 
     @Transaction
     @Query("SELECT * FROM materials")
-    fun getAllMaterialsFlow(): Flow<List<MaterialWithSections>>
+    fun getAllMaterialWithSectionsFlow(): Flow<List<MaterialWithSections>>
+
+    @Transaction
+    @Query("SELECT * FROM materials")
+    suspend fun getAllMaterialWithSections(): List<MaterialWithSections>
+
+    @Transaction
+    @Query("SELECT * FROM materials")
+    fun getAllMaterialFlow(): Flow<List<MaterialEntity>>
+
+
+    data class SectionElementWithContext(
+        @Embedded val element: SectionElementEntity,
+        @ColumnInfo(name = "parentSectionId") val parentSectionId: Long,
+        @ColumnInfo(name = "sectionTitle") val sectionTitle: String,
+        @ColumnInfo(name = "materialId") val materialId: Long,
+        @ColumnInfo(name = "materialTitle") val materialTitle: String
+    )
+    @Query("""
+        SELECT se.*, s.id as parentSectionId, s.title as sectionTitle, s.materialId as materialId, m.title as materialTitle
+        FROM section_elements se
+        JOIN sections s ON se.sectionId = s.id
+        JOIN materials m ON s.materialId = m.id
+        WHERE se.embedding IS NOT NULL
+    """)
+    suspend fun getAllElementsWithContextHavingEmbedding(): List<SectionElementWithContext>
+
+
+    data class SectionElementChunkWithContext(
+        @Embedded val chunk: SectionElementChunkEmbeddingEntity,
+        @ColumnInfo(name = "elementId") val elementId: Long,
+        @ColumnInfo(name = "elementType") val elementType: String,
+        @ColumnInfo(name = "sectionId") val sectionId: Long,
+        @ColumnInfo(name = "sectionTitle") val sectionTitle: String,
+        @ColumnInfo(name = "materialId") val materialId: Long,   // 👈 это нужно
+        @ColumnInfo(name = "materialTitle") val materialTitle: String
+    )
+    @Query("""
+    SELECT 
+        c.*, 
+        se.id AS elementId,
+        se.elementType AS elementType,
+        s.id AS sectionId,
+        s.title AS sectionTitle,
+        m.id AS materialId,          -- 👈 добавляем сюда
+        m.title AS materialTitle
+    FROM section_element_chunk_embeddings c
+    JOIN section_elements se ON c.sectionElementId = se.id
+    JOIN sections s ON se.sectionId = s.id
+    JOIN materials m ON s.materialId = m.id
+""")
+    suspend fun getAllChunksWithContext(): List<SectionElementChunkWithContext>
+
 
     @Transaction
     @Query("DELETE FROM materials WHERE id = :id")
@@ -102,10 +183,62 @@ interface MaterialDao {
     fun getMaterialsByGroupIdFlow(groupId: Long): Flow<List<MaterialEntity>>
 
     @Query("""
+        DELETE FROM materials
+        WHERE id IN (
+            SELECT m.id FROM materials m
+            JOIN material_group_crossref mg ON mg.materialId = m.id
+            WHERE mg.groupId = :groupId
+        )
+    """)
+    suspend fun deleteMaterialsByGroupId(groupId: Long)
+
+    @Query("""
         SELECT m.* FROM materials m
         JOIN material_course_crossref mc ON mc.materialId = m.id
         WHERE mc.courseId = :courseId
         ORDER BY m.updatedAt DESC
     """)
     fun getMaterialsByCourseIdFlow(courseId: Long): Flow<List<MaterialEntity>>
+
+    @Query("""
+        DELETE FROM materials
+        WHERE id IN (
+            SELECT m.id FROM materials m
+            JOIN material_course_crossref mc ON mc.materialId = m.id
+            WHERE mc.courseId = :courseId
+        )
+    """)
+    suspend fun deleteMaterialsByCourseId(courseId: Long)
+
+    // Получить id связанных групп
+    @Query("SELECT groupId FROM material_group_crossref WHERE materialId = :materialId")
+    suspend fun getGroupIdsByMaterialId(materialId: Long): List<Long>
+
+    // Получить id связанных курсов
+    @Query("SELECT courseId FROM material_course_crossref WHERE materialId = :materialId")
+    suspend fun getCourseIdsByMaterialId(materialId: Long): List<Long>
+
+    @Transaction
+    suspend fun moveMaterial(oldMaterialId: Long, newMaterialId: Long) {
+        val oldMaterial = getMaterialById(oldMaterialId)
+        val newMaterial = getMaterialById(newMaterialId)
+        val createdOldMaterial = oldMaterial?.createdAt?: return
+        val updatedNewMaterial = newMaterial?.copy(createdAt = createdOldMaterial)?: return
+        updateMaterial(updatedNewMaterial)
+
+        val groupIds = getGroupIdsByMaterialId(oldMaterialId)
+        val courseIds = getCourseIdsByMaterialId(oldMaterialId)
+
+        deleteMaterialById(oldMaterialId)
+
+        if (groupIds.isNotEmpty()) {
+            val refs = groupIds.map { MaterialGroupCrossRef(newMaterialId, it) }
+            insertMaterialGroupCrossRefs(refs)
+        }
+
+        if (courseIds.isNotEmpty()) {
+            val refs = courseIds.map { MaterialCourseCrossRef(newMaterialId, it) }
+            insertMaterialCourseCrossRefs(refs)
+        }
+    }
 }

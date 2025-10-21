@@ -1,9 +1,7 @@
 package com.wllcom.quicomguide.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,16 +10,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,8 +25,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.wllcom.quicomguide.data.local.AppDatabase
+import com.wllcom.quicomguide.ui.components.MaterialCard
 import com.wllcom.quicomguide.ui.components.TopBarWithSearch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,13 +40,13 @@ fun GroupScreen(
 ) {
     val context = LocalContext.current
     val dao = AppDatabase.getInstance(context).materialDao()
-
     var query by remember { mutableStateOf("") }
 
-    val materials by dao.getAllMaterialsFlow().collectAsState(initial = emptyList())
+    var isEditMode by remember { mutableStateOf(false) }
 
     val groupMaterials by dao.getMaterialsByGroupIdFlow(groupId!!.toLong())
-        .collectAsState(initial = emptyList())
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+
     val filtered = remember(groupMaterials, query) {
         if (query.isBlank()) groupMaterials
         else groupMaterials.filter { mat ->
@@ -58,19 +56,27 @@ fun GroupScreen(
         }
     }
 
+    // preview xml
+    val previewsById = remember(groupMaterials) {
+        groupMaterials.associate { it.id to previewFromXml(it.xmlRaw) }
+    }
+
     // Scaffold с TopAppBar (Back + Edit)
     Scaffold(
         topBar = {
             TopBarWithSearch(
-                title = { Text(text = "Группа: ${groupId ?: ""}") },
+                title = { if (!isEditMode) Text(text = "Группа: $groupId") else Text("Редактирование") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* edit group */ }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Редактировать")
+                    IconButton(onClick = { isEditMode = !isEditMode }) {
+                        Icon(
+                            imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
+                            contentDescription = if (!isEditMode) "Edit" else "Close edit"
+                        )
                     }
                 },
                 query = query,
@@ -83,26 +89,23 @@ fun GroupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
+                .padding(8.dp)
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 items(filtered) { mat ->
-                    Card(
+                    val preview = previewsById[mat.id] ?: ""
+                    MaterialCard(
+                        title = mat.title,
+                        text = preview,
+                        editMode = isEditMode,
                         modifier = Modifier
+                            .height(105.dp)
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                            .clickable { navController.navigate("material/${mat.id}") }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(mat.title)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text(
-                                previewFromXml(mat.xmlRaw),
-                                maxLines = 3,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                            .padding(bottom = 10.dp),
+                        onClick = { navController.navigate("material/${mat.id}") },
+                        onLongClick = { isEditMode = !isEditMode },
+                        onDeleteClick = {}
+                    )
                 }
             }
         }

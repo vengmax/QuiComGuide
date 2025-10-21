@@ -33,7 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,11 +53,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wllcom.quicomguide.data.source.EnumSearchMode
 
 @Preview
 @Composable
 fun PreviewAnimatedSearchField() {
-    AnimatedSearchField("", { })
+    AnimatedSearchField("", { }){}
 }
 
 @Composable
@@ -68,24 +69,28 @@ fun AnimatedSearchField(
     strokeWidth: Dp = 1.dp,
     cornerRadius: Dp = 24.dp,
     alphaGlow: Float = 0.5f,
+    fallbackMode: (EnumSearchMode) -> Unit
 ) {
 
     // variables
     val borderPadding = 8.dp
     val searchPadding = 12.dp
     val innerColor = MaterialTheme.colorScheme.background
-    var expanded by remember { mutableStateOf(false) }
-    var selectedAiSearch by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    var selectedSearchMode by rememberSaveable { mutableStateOf<EnumSearchMode>(EnumSearchMode.FTS) }
+
     val icon = if (expanded) {
         Icons.Default.AutoFixHigh
     } else {
         Icons.Default.AutoFixHigh
     }
-    val placeholderText = if (selectedAiSearch) {
+    val placeholderText = if (selectedSearchMode == EnumSearchMode.EMBEDDING)
         "AI поиск..."
-    } else {
+    else if (selectedSearchMode == EnumSearchMode.BOTH)
+        "Точный поиск..."
+    else
         "Поиск..."
-    }
+
     val colors = listOf(
         Color(0xFFFDD835), Color(0xFFFD9900), Color(0xFFFF5D93),
         Color(0xFFFF60EA), Color(0xFFFF5D93), Color(0xFFFD9900)
@@ -114,7 +119,7 @@ fun AnimatedSearchField(
         modifier = modifier
             .background(Color.Transparent)
             .then(
-                if (selectedAiSearch) {
+                if (selectedSearchMode == EnumSearchMode.EMBEDDING || selectedSearchMode == EnumSearchMode.BOTH) {
                     modifier
                         .glowBorder(
                             stroke = strokeWidth,
@@ -186,13 +191,20 @@ fun AnimatedSearchField(
                         .fillMaxWidth()
                         .padding(18.dp, 0.dp, 18.dp, 10.dp)
                 ) {
-                    MenuItem(text = "AI поиск", selectedAiSearch) {
+                    MenuItem(text = "Обычный поиск", selectedSearchMode == EnumSearchMode.FTS) {
                         expanded = false
-                        selectedAiSearch = true
+                        selectedSearchMode = EnumSearchMode.FTS
+                        fallbackMode(selectedSearchMode)
                     }
-                    MenuItem(text = "Обычный поиск", !selectedAiSearch) {
+                    MenuItem(text = "AI поиск", selectedSearchMode == EnumSearchMode.EMBEDDING) {
                         expanded = false
-                        selectedAiSearch = false
+                        selectedSearchMode = EnumSearchMode.EMBEDDING
+                        fallbackMode(selectedSearchMode)
+                    }
+                    MenuItem(text = "Обычный поиск + AI поиск", selectedSearchMode == EnumSearchMode.BOTH) {
+                        expanded = false
+                        selectedSearchMode = EnumSearchMode.BOTH
+                        fallbackMode(selectedSearchMode)
                     }
                 }
             }

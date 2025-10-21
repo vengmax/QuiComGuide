@@ -1,15 +1,15 @@
 package com.wllcom.quicomguide.ui.viewmodel
 
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.wllcom.quicomguide.data.ml.EmbeddingProvider
 import com.wllcom.quicomguide.data.repository.MaterialsRepository
+import com.wllcom.quicomguide.data.source.EnumSearchMode
 import com.wllcom.quicomguide.data.source.SearchResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 @HiltViewModel
 class MaterialsViewModel @Inject constructor(
@@ -17,20 +17,26 @@ class MaterialsViewModel @Inject constructor(
     private val embeddingProvider: EmbeddingProvider
 ) : ViewModel() {
 
-    var results = mutableStateOf(SearchResponse("", emptyList(), emptyList()))
-        private set
+    private val _searchResults = MutableStateFlow(SearchResponse("", emptyList(), emptyList()))
+    val searchResults = _searchResults.asStateFlow()
 
-    val isReadyFlow: StateFlow<Boolean> = embeddingProvider.isReadyFlow
+    val isAiSearchReady: StateFlow<Boolean> = embeddingProvider.isReady
 
-    fun search(query: String) {
-        viewModelScope.launch {
-            results.value = repository.search(query)
-        }
+    suspend fun search(
+        query: String,
+        mode: EnumSearchMode = EnumSearchMode.BOTH,
+        topK: Int = 10
+    ): SearchResponse {
+        val res = repository.search(query, mode, topK)
+        _searchResults.value = res
+        return res
     }
 
-    fun addMaterial(name: String) {
-        viewModelScope.launch {
-            repository.addMaterial(name)
-        }
+    suspend fun addMaterial(xml: String): Long? {
+        return repository.addMaterial(xml)
+    }
+
+    suspend fun updateMaterial(materialId: Long, xml: String): Long? {
+        return repository.updateMaterial(materialId, xml)
     }
 }

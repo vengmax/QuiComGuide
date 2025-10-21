@@ -13,7 +13,7 @@ sealed class Screen(
     object Home :
         Screen("home", "Главная", R.drawable.ic_search, Color(0xFFFFA726))
 
-    object Tests : Screen("tests", "Тесты", R.drawable.ic_brain, Color(0xFFFDD835))
+    //    object Tests : Screen("tests", "Тесты", R.drawable.ic_brain, Color(0xFFFDD835))
     object Library :
         Screen("library", "Материалы", R.drawable.ic_books, Color(0xFFEF5350))
 
@@ -21,5 +21,6 @@ sealed class Screen(
 }
 
 val bottomNavItems = listOf(
-    Screen.Home, Screen.Tests, Screen.Library, Screen.Profile
+//    Screen.Home, Screen.Tests, Screen.Library, Screen.Profile
+    Screen.Home, Screen.Library, Screen.Profile
 )

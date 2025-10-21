@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,11 +31,14 @@ class MainActivity : ComponentActivity() {
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
 
-                // показываем bottomBar только для корневых вкладок
                 val showBottomBar = currentRoute in listOf("home", "tests", "library", "profile")
 
                 val viewModel: MaterialsViewModel by viewModels()
-//                LaunchedEffect(viewModel) { insertSampleData(viewModel) }
+//                val isReady by viewModel.isAiSearchReady.collectAsState()
+//                LaunchedEffect(isReady) {
+//                    if(isReady)
+//                        insertSampleData(viewModel)
+//                }
 
                 Scaffold(
                     bottomBar = {

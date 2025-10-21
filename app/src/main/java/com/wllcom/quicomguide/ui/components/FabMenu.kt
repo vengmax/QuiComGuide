@@ -15,32 +15,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.CollectionsBookmark
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.wllcom.quicomguide.data.local.AppDatabase
-import com.wllcom.quicomguide.data.local.entities.CourseEntity
-import com.wllcom.quicomguide.data.local.entities.MaterialGroupEntity
-import kotlinx.coroutines.launch
 
 @Preview
 @Composable
@@ -61,15 +52,6 @@ fun FabMenu(
     onAction: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val ctx = LocalContext.current
-    val db = AppDatabase.getInstance(ctx)
-    val groupDao = db.groupDao()
-    val courseDao = db.courseDao()
-    val scope = rememberCoroutineScope()
-
-    var showCreateGroupDialog by remember { mutableStateOf(false) }
-    var showCreateCourseDialog by remember { mutableStateOf(false) }
-    var newName by remember { mutableStateOf("") }
 
     if (expanded) {
         Box(
@@ -105,25 +87,35 @@ fun FabMenu(
                 ExtendedFloatingActionButton(
                     onClick = { onAction("material"); expanded = false },
                     text = { Text("Материал") },
-                    icon = { Icon(Icons.Default.Create, contentDescription = "Материал") },
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Article,
+                            contentDescription = "Материал"
+                        )
+                    },
                     modifier = Modifier.height(45.dp)
                 )
             }
             AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
                 ExtendedFloatingActionButton(
-                    onClick = { onAction("group"); showCreateGroupDialog = true; expanded = false },
+                    onClick = { onAction("group"); expanded = false },
                     text = { Text("Группа") },
-                    icon = { Icon(Icons.Default.Menu, contentDescription = "Группа") },
+                    icon = {
+                        Icon(
+                            Icons.Default.CollectionsBookmark,
+                            contentDescription = "Группа"
+                        )
+                    },
                     modifier = Modifier.height(45.dp)
                 )
             }
             AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
                 ExtendedFloatingActionButton(
                     onClick = {
-                        onAction("course"); showCreateCourseDialog = true; expanded = false
+                        onAction("course"); expanded = false
                     },
                     text = { Text("Курс") },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Курс") },
+                    icon = { Icon(Icons.Default.Folder, contentDescription = "Курс") },
                     modifier = Modifier.height(45.dp)
                 )
             }
@@ -135,65 +127,5 @@ fun FabMenu(
         ) {
             Text(mainFabText)
         }
-    }
-
-    if (showCreateGroupDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateGroupDialog = false; newName = "" },
-            confirmButton = {
-                TextButton(onClick = {
-                    val name = newName.trim()
-                    if (name.isNotEmpty()) {
-                        scope.launch {
-                            groupDao.insert(MaterialGroupEntity(name = name))
-                        }
-                    }
-                    showCreateGroupDialog = false
-                    newName = ""
-                }) { Text("Создать") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showCreateGroupDialog = false; newName = ""
-                }) { Text("Отмена") }
-            },
-            title = { Text("Новая группа") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Имя группы") })
-            }
-        )
-    }
-
-    if (showCreateCourseDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateCourseDialog = false; newName = "" },
-            confirmButton = {
-                TextButton(onClick = {
-                    val name = newName.trim()
-                    if (name.isNotEmpty()) {
-                        scope.launch {
-                            courseDao.insert(CourseEntity(name = name))
-                        }
-                    }
-                    showCreateCourseDialog = false
-                    newName = ""
-                }) { Text("Создать") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showCreateCourseDialog = false; newName = ""
-                }) { Text("Отмена") }
-            },
-            title = { Text("Новый курс") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Имя курса") })
-            }
-        )
     }
 }

@@ -1,6 +1,7 @@
 package com.wllcom.quicomguide.ui.screens
 
 import android.annotation.SuppressLint
+import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,10 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.ui.components.AnimatedSearchField
 import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
 import kotlinx.coroutines.FlowPreview
@@ -40,12 +38,19 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.compose.rememberNavController
+import com.wllcom.quicomguide.data.source.EnumSearchMode
+import com.wllcom.quicomguide.ui.components.HighlightedWebView
+import kotlinx.coroutines.launch
 
 @SuppressLint("ViewModelConstructorInComposable")
 @Preview
 @Composable
 fun PreviewHomeScreen() {
-    HomeScreen(rememberNavController(), viewModel(), PaddingValues())
+    HomeScreen(rememberNavController(), viewModel(), PaddingValues(), WebView(LocalContext.current))
 }
 
 @OptIn(FlowPreview::class)
@@ -53,10 +58,13 @@ fun PreviewHomeScreen() {
 fun HomeScreen(
     navController: NavController? = null,
     viewModel: MaterialsViewModel,
-    contentPadding: PaddingValues
+    contentPadding: PaddingValues,
+    sharedWebView: WebView
 ) {
     var queryState by rememberSaveable { mutableStateOf("") }
-    val viewModelIsReady by viewModel.isReadyFlow.collectAsState(initial = false)
+    val isAiSearchReady by viewModel.isAiSearchReady.collectAsState(initial = false)
+    val resultsState by viewModel.searchResults.collectAsState()
+    var currentSearchMode by rememberSaveable { mutableStateOf(EnumSearchMode.FTS) }
 
     Scaffold(
         modifier = Modifier.padding(contentPadding),
@@ -64,30 +72,38 @@ fun HomeScreen(
             AnimatedSearchField(
                 query = queryState,
                 onQueryChange = { queryState = it },
-            )
+            ){ searchMode ->
+                currentSearchMode = searchMode
+            }
         }
     ) { padding ->
 
         // loading widget
-        if (!viewModelIsReady) {
+        if (!isAiSearchReady) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
             }
             return@Scaffold
         }
 
-        val resultsState by viewModel.results
-
         // search
         LaunchedEffect(viewModel) {
-            snapshotFlow { queryState }
-                .drop(1)
-                .map { it.trim() }
-                .distinctUntilChanged()
-                .debounce(700L)
-                .collectLatest { q ->
-                    viewModel.search(q)
-                }
+            launch {
+                snapshotFlow { queryState }
+                    .drop(1)
+                    .map { it.trim() }
+                    .distinctUntilChanged()
+                    .debounce(700L)
+                    .collectLatest { q ->
+                        viewModel.search(q, currentSearchMode)
+                    }
+            }
+            launch {
+                snapshotFlow { currentSearchMode }
+                    .collectLatest {
+                        viewModel.search(queryState, currentSearchMode)
+                    }
+            }
         }
 
         LazyColumn(
@@ -106,10 +122,19 @@ fun HomeScreen(
                     Card(modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text("Краткий ответ:", style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(resultsState.conciseAnswer!!)
+                        Column {
+                            Text(
+                                "Краткий ответ:",
+                                modifier = Modifier.padding(12.dp, 12.dp, 12.dp, 0.dp),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            HighlightedWebView(
+                                text = resultsState.conciseAnswer!!,
+                                supportZoom = true,
+                                sharedWebView = sharedWebView,
+                                fontSize = 14,
+                                backgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
                         }
                     }
                     Text("Материалы", modifier = Modifier.padding(vertical = 8.dp))
@@ -135,5 +160,3 @@ fun HomeScreen(
         }
     }
 }
-
-

@@ -1,60 +1,82 @@
 package com.wllcom.quicomguide.ui.screens
 
+import android.webkit.WebView
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.local.entities.MaterialEntity
+import com.wllcom.quicomguide.data.parser.ParsedMaterial
+import com.wllcom.quicomguide.data.parser.XmlMaterialParser
+import com.wllcom.quicomguide.ui.components.HighlightedWebView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaterialDetailScreen(
     materialId: String?,
     navController: NavController,
-    contentPadding: androidx.compose.foundation.layout.PaddingValues
+    contentPadding: PaddingValues,
+    sharedWebView: WebView
 ) {
     val context = LocalContext.current
-    val dao = AppDatabase.getInstance(context).materialQueryDao()
+    val dao = AppDatabase.getInstance(context).materialDao()
+    var currentMaterialId = materialId?.toLongOrNull()
 
-    var material by remember {
-        mutableStateOf<MaterialEntity?>(
-            null
-        )
-    }
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    val updatedMaterialId = savedStateHandle?.getLiveData<Long?>("updatedMaterialId")
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    LaunchedEffect(materialId) {
-        materialId?.toLongOrNull()?.let { id ->
-            try {
-                material = dao.getMaterialById(id)
-            } catch (e: Exception) {
-                material = null
-            }
+    LaunchedEffect(Unit) {
+        updatedMaterialId?.observe(lifecycleOwner) { id ->
+            currentMaterialId = id
         }
     }
+
+    val loaded by produceState<Pair<MaterialEntity?, ParsedMaterial?>>(
+        initialValue = null to null,
+        currentMaterialId
+    ) {
+        var entity: MaterialEntity?
+        var parsed: ParsedMaterial?
+        val id = currentMaterialId ?: run { value = null to null; return@produceState }
+        try {
+            entity = dao.getMaterialById(id)
+            val xml = entity?.xmlRaw ?: run { value = null to null; return@produceState }
+            try {
+                parsed = withContext(Dispatchers.Default) {
+                    XmlMaterialParser.parse(xml, false)
+                }
+                value = entity to parsed
+            } catch (e: Exception) {
+                value = null to null
+            }
+        } catch (e: Exception) {
+            value = null to null
+        }
+
+    }
+    val material = loaded.first
+    val parsed = loaded.second
 
     Scaffold(
         topBar = {
@@ -76,18 +98,18 @@ fun MaterialDetailScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(contentPadding)
-                .padding(16.dp)
+                .padding(padding)
         ) {
-            val scrollState = rememberScrollState()
-            Column(modifier = Modifier.verticalScroll(scrollState)) {
-                Text(
-                    material?.xmlRaw ?: "Материал не найден",
-                    style = MaterialTheme.typography.bodyLarge
+            when {
+                parsed == null -> Text("Загрузка или материал не найден")
+                else -> HighlightedWebView(
+                    parsedMaterial = parsed,
+                    supportZoom = true,
+                    fontSize = 12,
+                    sharedWebView = sharedWebView,
                 )
-                Spacer(modifier = Modifier.height(24.dp))
-                // possible sections / additional info...
             }
         }
     }
 }
+

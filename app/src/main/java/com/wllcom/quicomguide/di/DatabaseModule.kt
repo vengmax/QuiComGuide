@@ -23,9 +23,6 @@ object DatabaseModule {
     fun provideMaterialDao(db: AppDatabase) = db.materialDao()
 
     @Provides
-    fun provideMaterialQueryDao(db: AppDatabase) = db.materialQueryDao()
-
-    @Provides
     fun provideCourseDao(db: AppDatabase) = db.courseDao()
 
     @Provides

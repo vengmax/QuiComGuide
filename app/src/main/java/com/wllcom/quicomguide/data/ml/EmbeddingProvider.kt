@@ -31,11 +31,10 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
     var publicTokenizer: Tokenizer? = null
 
     private val _isReady = MutableStateFlow(false)
-    val isReadyFlow: StateFlow<Boolean> = _isReady.asStateFlow()
+    val isReady: StateFlow<Boolean> = _isReady.asStateFlow()
 
     private val embedMutex = Mutex()
     private val initMutex = Mutex()
-
 
     private lateinit var modelPath: String
     private lateinit var tokenizerPath: String
@@ -44,8 +43,6 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
         this.tokenizerPath = tokenizerPath
     }
 
-
-
     suspend fun ensureReady() = initMutex.withLock {
         if (!_isReady.value) {
             initModel()
@@ -53,9 +50,6 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
             _isReady.value = true
         }
     }
-
-    val isReady: Boolean
-        get() = _isReady.value
 
     fun warmUp() {
         CoroutineScope(Dispatchers.Default).launch {

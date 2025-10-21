@@ -21,5 +21,7 @@ data class SectionElementChunkEmbeddingEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val sectionElementId: Long,
     val chunkIndex: Int,
-    val embedding: ByteArray // one embedding blob per chunk
+    val chunkText: String,
+    val chunkEmbedding: ByteArray // one embedding blob per chunk
+
 )

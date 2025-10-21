@@ -13,7 +13,6 @@ import com.wllcom.quicomguide.data.local.entities.MaterialGroupEntity
 import com.wllcom.quicomguide.data.local.entities.CourseEntity
 import com.wllcom.quicomguide.data.local.crossref.MaterialCourseCrossRef
 import com.wllcom.quicomguide.data.local.crossref.MaterialGroupCrossRef
-import com.wllcom.quicomguide.data.local.dao.MaterialQueryDao
 import com.wllcom.quicomguide.data.local.entities.SectionElementChunkEmbeddingEntity
 import com.wllcom.quicomguide.data.local.entities.SectionElementEntity
 import com.wllcom.quicomguide.data.local.entities.SectionEntity
@@ -35,7 +34,6 @@ import com.wllcom.quicomguide.data.local.entities.SectionEntity
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun materialDao(): MaterialDao
-    abstract fun materialQueryDao(): MaterialQueryDao
     abstract fun groupDao(): GroupDao
     abstract fun courseDao(): CourseDao
 
