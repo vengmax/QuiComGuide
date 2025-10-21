@@ -1,0 +1,67 @@
+/* table-light.css - стиль таблицы для светлой темы (ChatGPT-like) */
+.chat-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  margin: 12px 0;
+}
+
+table.chat-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 320px;
+  font-family: -apple-system, Roboto, "Segoe UI", "Helvetica", Arial, sans-serif;
+  font-size: 0.95em;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+  color: #0b1220;
+}
+
+/* header */
+table.chat-table thead th {
+  text-align: left;
+  padding: 0.75em 1em;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+  background: #f6f8fa;
+}
+
+table.chat-table tbody td {
+  padding: 0.75em 1em;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+  word-break: break-word;
+}
+
+table.chat-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* alternating rows */
+table.chat-table tbody tr:nth-child(odd) {
+  background: rgba(15,23,42,0.02);
+}
+
+/* hover */
+table.chat-table tbody tr:hover {
+  background: rgba(15,23,42,0.04);
+}
+
+/* inline code */
+table.chat-table code.inline {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  font-size: 0.9em;
+  background: #f6f8fa;
+}
+
+/* responsive adjustments */
+@media (max-width: 520px) {
+  table.chat-table thead th, table.chat-table tbody td {
+    padding: 0.625em 0.75em;
+  }
+}

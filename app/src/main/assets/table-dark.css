@@ -1,0 +1,66 @@
+.chat-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  -webkit-overflow-scrolling: touch;
+  margin: 12px 0;
+}
+
+table.chat-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 320px;
+  font-family: -apple-system, Roboto, "Segoe UI", "Helvetica", Arial, sans-serif;
+  font-size: 0.95em;
+  border-radius: 10px;
+  overflow: hidden;
+  background: transparent;
+  color: #c9d1d9;
+}
+
+/* header */
+table.chat-table thead th {
+  text-align: left;
+  padding: 0.75em 1em;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: #071028;
+}
+
+table.chat-table tbody td {
+  padding: 0.75em 1em;
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  word-break: break-word;
+}
+
+table.chat-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* alternating rows */
+table.chat-table tbody tr:nth-child(odd) {
+  background: rgba(255,255,255,0.015);
+}
+
+/* hover */
+table.chat-table tbody tr:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+/* inline code */
+table.chat-table code.inline {
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+  font-size: 0.9em;
+  background: #0e1622;
+}
+
+/* responsive adjustments */
+@media (max-width: 520px) {
+  table.chat-table thead th, table.chat-table tbody td {
+    padding: 0.625em 0.75em;
+  }
+}
