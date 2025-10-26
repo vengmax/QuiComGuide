@@ -2,6 +2,7 @@ package com.wllcom.quicomguide.data.local.crossref
 
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Index
 import com.wllcom.quicomguide.data.local.entities.CourseEntity
 import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 
@@ -21,7 +22,8 @@ import com.wllcom.quicomguide.data.local.entities.MaterialEntity
             childColumns = ["courseId"],
             onDelete = ForeignKey.CASCADE
         )
-    ]
+    ],
+    indices = [Index("materialId"), Index("courseId")]
 )
 data class MaterialCourseCrossRef(
     val materialId: Long,

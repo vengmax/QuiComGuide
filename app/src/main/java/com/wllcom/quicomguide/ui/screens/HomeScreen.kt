@@ -1,6 +1,5 @@
 package com.wllcom.quicomguide.ui.screens
 
-import android.annotation.SuppressLint
 import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,27 +37,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.data.source.EnumSearchMode
+import com.wllcom.quicomguide.ui.components.BottomBar
 import com.wllcom.quicomguide.ui.components.HighlightedWebView
 import kotlinx.coroutines.launch
-
-@SuppressLint("ViewModelConstructorInComposable")
-@Preview
-@Composable
-fun PreviewHomeScreen() {
-    HomeScreen(rememberNavController(), viewModel(), PaddingValues(), WebView(LocalContext.current))
-}
 
 @OptIn(FlowPreview::class)
 @Composable
 fun HomeScreen(
-    navController: NavController? = null,
+    systemPadding: PaddingValues,
+    navController: NavController,
     viewModel: MaterialsViewModel,
-    contentPadding: PaddingValues,
     sharedWebView: WebView
 ) {
     var queryState by rememberSaveable { mutableStateOf("") }
@@ -67,15 +56,18 @@ fun HomeScreen(
     var currentSearchMode by rememberSaveable { mutableStateOf(EnumSearchMode.FTS) }
 
     Scaffold(
-        modifier = Modifier.padding(contentPadding),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = systemPadding.calculateTopPadding()),
         topBar = {
             AnimatedSearchField(
                 query = queryState,
                 onQueryChange = { queryState = it },
-            ){ searchMode ->
+            ) { searchMode ->
                 currentSearchMode = searchMode
             }
-        }
+        },
+        bottomBar = { BottomBar(navController = navController) }
     ) { padding ->
 
         // loading widget
@@ -119,9 +111,11 @@ fun HomeScreen(
                     Text("Рекомендуемые материалы", modifier = Modifier.padding(bottom = 8.dp))
                 } else {
 
-                    Card(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                    ) {
                         Column {
                             Text(
                                 "Краткий ответ:",

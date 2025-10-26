@@ -23,7 +23,7 @@ import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
 fun AppNavHost(
     navController: NavHostController,
     viewModel: MaterialsViewModel,
-    paddingValues: PaddingValues
+    systemPadding: PaddingValues
 ) {
     // init WebView
     val context = LocalContext.current
@@ -66,56 +66,61 @@ fun AppNavHost(
     NavHost(navController = navController, startDestination = "home") {
         composable("home") {
             HomeScreen(
+                systemPadding = systemPadding,
                 navController = navController,
                 viewModel = viewModel,
-                contentPadding = paddingValues,
                 sharedWebView = sharedWebView
             )
         }
         composable("tests") {
-            TestsScreen(contentPadding = paddingValues)
+            TestsScreen(systemPadding = systemPadding)
         }
         composable("library") {
             LibraryScreen(
-                navController = navController,
-                contentPadding = paddingValues
+                systemPadding = systemPadding,
+                navController = navController
             )
         }
         composable("profile") {
-            ProfileScreen(contentPadding = paddingValues)
+            ProfileScreen(
+                systemPadding = systemPadding,
+                navController = navController
+            )
         }
+
         composable("group/{groupId}") { backStackEntry ->
             val groupId = backStackEntry.arguments?.getString("groupId")
             GroupScreen(
+                systemPadding = systemPadding,
                 navController = navController,
                 groupId = groupId,
-                contentPadding = paddingValues
             )
         }
         composable("material/{materialId}") { backStackEntry ->
             val materialId = backStackEntry.arguments?.getString("materialId")
             MaterialDetailScreen(
+                systemPadding = systemPadding,
                 materialId = materialId,
                 navController = navController,
-                contentPadding = paddingValues,
                 sharedWebView = sharedWebView
             )
         }
+
         composable("addMaterial") {
             AddEditMaterialScreen(
+                systemPadding = systemPadding,
                 navController = navController,
                 viewModel = viewModel,
                 materialId = null,
-                padding = paddingValues
             )
         }
         composable("editMaterial/{materialId}") { backStackEntry ->
             val materialId = backStackEntry.arguments?.getString("materialId")
             AddEditMaterialScreen(
+                systemPadding = systemPadding,
                 navController = navController,
                 viewModel = viewModel,
                 materialId = materialId,
-                padding = paddingValues
             )
         }
     }

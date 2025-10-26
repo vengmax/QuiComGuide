@@ -17,7 +17,7 @@ interface GroupDao {
     @Query("SELECT * FROM material_groups ORDER BY name")
     suspend fun getAllGroups(): List<MaterialGroupEntity>
 
-    @Query("SELECT * FROM material_groups WHERE courseId = :courseId OR :courseId IS NULL")
+    @Query("SELECT * FROM material_groups WHERE ((:courseId IS NULL AND courseId IS NULL) OR courseId = :courseId)")
     suspend fun getGroupsByCourseId(courseId: Long?): List<MaterialGroupEntity>
 
     @Query("SELECT * FROM material_groups WHERE id = :id LIMIT 1")
@@ -28,7 +28,7 @@ interface GroupDao {
     fun getAllGroupsWithMaterialsFlow(): Flow<List<GroupWithMaterials>>
 
     @Transaction
-    @Query("SELECT * FROM material_groups WHERE (:courseId IS NULL OR courseId = :courseId)")
+    @Query("SELECT * FROM material_groups WHERE ((:courseId IS NULL AND courseId IS NULL) OR courseId = :courseId)")
     fun getGroupsWithMaterialsByCourseIdFlow(courseId: Long?): Flow<List<GroupWithMaterials>>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)

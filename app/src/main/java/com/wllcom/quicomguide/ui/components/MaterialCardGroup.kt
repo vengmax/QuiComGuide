@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,7 @@ fun MaterialCardGroup(
     groupName: String,
     listMaterials: List<MaterialEntity>,
     editMode: Boolean,
+    deletingGroup: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDeleteClick: () -> Unit,
@@ -137,19 +139,24 @@ fun MaterialCardGroup(
         }
     }
 
-    if (enabledDeleteMode) {
+    if (enabledDeleteMode || deletingGroup) {
         AlertDialog(
-            onDismissRequest = { enabledDeleteMode = false },
+            onDismissRequest = { if(!deletingGroup) enabledDeleteMode = false },
             title = { Text("Удалить группу?") },
             text = { Text("Все матриалы в этой группе будут удалены. Это действие нельзя будет отменить.") },
             confirmButton = {
                 TextButton(onClick = { onDeleteClick(); enabledDeleteMode = false }) {
-                    Text("Удалить")
+                    if (!deletingGroup)
+                        Text("Удалить")
+                    else
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { enabledDeleteMode = false }) {
-                    Text("Отмена")
+                if(!deletingGroup) {
+                    TextButton(onClick = { enabledDeleteMode = false }) {
+                        Text("Отмена")
+                    }
                 }
             }
         )

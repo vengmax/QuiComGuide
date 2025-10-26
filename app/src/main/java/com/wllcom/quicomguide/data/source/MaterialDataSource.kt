@@ -44,14 +44,14 @@ private const val MAX_SIM_WITH_SELECTED = 0.93f
 private const val MIN_NOVELTY = 0.01f
 
 @Singleton
-class SmartSearchDataSource @Inject constructor(
+class MaterialDataSource @Inject constructor(
     private val db: AppDatabase,
     private val embeddingProvider: EmbeddingProvider
 ) {
 
     private val dao = db.materialDao()
 
-    suspend fun addMaterial(xml: String): Long? = withContext(Dispatchers.IO) {
+    suspend fun addMaterial(title: String, xml: String): Long? = withContext(Dispatchers.IO) {
 
         // parse
         val parsed = XmlMaterialParser.parse(xml)
@@ -65,7 +65,7 @@ class SmartSearchDataSource @Inject constructor(
 
         // insert tree without embeddings, get ids
         val (materialId, sectionsResult) = dao.insertMaterialTree(
-            parsed.title,
+            title,
             parsed.xmlRaw.trim(),
             sectionsForDao
         )
@@ -86,6 +86,11 @@ class SmartSearchDataSource @Inject constructor(
         dao.updateMaterial(updatedMaterialRow)
 
 //        dao.insertMaterialFts(MaterialFts(rowid = materialId, contentFts = contentFts))
+
+        // embed material title
+        val materialTitleEmb = withContext(Dispatchers.Default) {
+            embeddingProvider.embed(title)
+        }
 
         // compute embeddings per element
         var sIdx = 0
@@ -123,7 +128,8 @@ class SmartSearchDataSource @Inject constructor(
                     for (ce in chunkEmbeddings) {
                         for (i in 0 until dim) agg[i] += ce[i]
                     }
-                    for (i in 0 until dim) agg[i] = agg[i] / chunkEmbeddings.size
+                    for (i in 0 until dim) agg[i] += materialTitleEmb[i]
+                    for (i in 0 until dim) agg[i] = agg[i] / (chunkEmbeddings.size + 1)
 
                     // normalize aggregated vector for cosine comparison
                     l2Normalize(agg)
@@ -154,7 +160,8 @@ class SmartSearchDataSource @Inject constructor(
     }
 
     suspend fun updateMaterial(materialId: Long, xml: String): Long? = withContext(Dispatchers.IO) {
-        val newMaterialId = addMaterial(xml) ?: return@withContext null
+        val title = dao.getMaterialById(materialId)!!.title
+        val newMaterialId = addMaterial(title, xml) ?: return@withContext null
         dao.moveMaterial(materialId, newMaterialId)
         return@withContext newMaterialId
     }

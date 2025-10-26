@@ -33,9 +33,9 @@ import kotlinx.coroutines.withContext
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MaterialDetailScreen(
+    systemPadding: PaddingValues,
     materialId: String?,
     navController: NavController,
-    contentPadding: PaddingValues,
     sharedWebView: WebView
 ) {
     val context = LocalContext.current
@@ -103,6 +103,7 @@ fun MaterialDetailScreen(
             when {
                 parsed == null -> Text("Загрузка или материал не найден")
                 else -> HighlightedWebView(
+                    materialTitle = material!!.title,
                     parsedMaterial = parsed,
                     supportZoom = true,
                     fontSize = 12,

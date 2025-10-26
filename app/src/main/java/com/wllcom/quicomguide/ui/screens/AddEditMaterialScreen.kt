@@ -1,7 +1,10 @@
 package com.wllcom.quicomguide.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
 import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
@@ -49,6 +53,8 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,45 +65,48 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.local.crossref.MaterialCourseCrossRef
 import com.wllcom.quicomguide.data.local.crossref.MaterialGroupCrossRef
 import com.wllcom.quicomguide.data.local.entities.CourseEntity
 import com.wllcom.quicomguide.data.local.entities.MaterialGroupEntity
+import com.wllcom.quicomguide.data.source.cloud.AuthService
 import com.wllcom.quicomguide.ui.viewmodel.AddEditMaterialViewModel
+import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
 import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
+import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
-
-@Preview
-@Composable
-fun PreviewAddEditMaterialScreen() {
-    AddEditMaterialScreen(rememberNavController(), viewModel(), "0", PaddingValues())
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditMaterialScreen(
+    systemPadding: PaddingValues,
     navController: NavController,
     viewModel: MaterialsViewModel,
     materialId: String? = null,
-    padding: PaddingValues
 ) {
     val context = LocalContext.current
     val db = AppDatabase.getInstance(context)
@@ -105,25 +114,16 @@ fun AddEditMaterialScreen(
     val groupDao = db.groupDao()
     val courseDao = db.courseDao()
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
     var updatedMaterialId by remember { mutableStateOf<Long?>(null) }
-
-    var editingMaterial by remember { mutableStateOf(false) }
-    var editingMaterialState by remember { mutableStateOf(false) }
-    if (!editingMaterial && editingMaterialState) {
-        navController.previousBackStackEntry
-            ?.savedStateHandle
-            ?.set("updatedMaterialId", updatedMaterialId)
-
-        navController.popBackStack()
-    }
 
     var showSettingsDialog by remember { mutableStateOf(false) }
 
+    var materialTitle by remember { mutableStateOf("") }
     var xmlValue by remember {
         mutableStateOf(
             TextFieldValue(
                 text = "<material>\n" +
-                        "   <title>Заголовок</title>\n" +
                         "   <section>\n" +
                         "       <title>Новый раздел</title>\n" +
                         "       <content>\n" +
@@ -171,8 +171,9 @@ fun AddEditMaterialScreen(
     }
     LaunchedEffect(materialDao) {
         materialId?.toLongOrNull()?.let { id ->
-            xmlValue =
-                TextFieldValue(materialDao.getMaterialById(id)?.xmlRaw ?: "Материал не найден!")
+            val mat = materialDao.getMaterialById(id)
+            materialTitle = mat?.title?: "Материал не найден!"
+            xmlValue = TextFieldValue(mat?.xmlRaw ?: "Материал не найден!")
         }
     }
 
@@ -184,33 +185,115 @@ fun AddEditMaterialScreen(
     val selectedGroupName by vmAddEditMaterial.selectedGroupName.collectAsState()
     val selectedGroupId by vmAddEditMaterial.selectedGroupId.collectAsState()
 
+    // online
+    val authViewMode: AuthViewModel = hiltViewModel()
+    val storageViewMode: StorageViewModel = hiltViewModel()
+
+    // upload material
+    val statusUploadMaterial by storageViewMode.statusUploadMaterial.collectAsState()
+    var uploadingMaterial by remember { mutableStateOf(false) }
+    var uploadingMaterialState by remember { mutableStateOf(false) }
+    var jobUploadMaterial by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(statusUploadMaterial) {
+        if (statusUploadMaterial == true && uploadingMaterial) {
+            jobUploadMaterial!!.start()
+        }
+        else if (statusUploadMaterial == false && uploadingMaterial){
+            snackbarHostState.showSnackbar(
+                "Ошибка операции",
+                withDismissAction = true
+            )
+            uploadingMaterial = false
+        }
+    }
+    BackHandler(enabled = uploadingMaterial) {}
+    if (!uploadingMaterial && uploadingMaterialState && statusUploadMaterial == true) {
+        navController.previousBackStackEntry
+            ?.savedStateHandle
+            ?.set("updatedMaterialId", updatedMaterialId)
+
+        navController.popBackStack()
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Scaffold(
         topBar = {
             TopAppBar(
                 modifier = Modifier.padding(end = 8.dp),
                 title = {
-                    Text(text = "Редактирование")
+                    if (uploadingMaterial || materialId != null) {
+                        Text(text = materialTitle, softWrap = false, maxLines = 1)
+                    }
+                    else {
+                        BasicTextField(
+                            value = materialTitle,
+                            onValueChange = { materialTitle = it },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onBackground
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(40.dp)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(5.dp)
+                                )
+                                .padding(horizontal = 8.dp)
+                                .focusRequester(focusRequester)
+                        ) { innerTextField ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (materialTitle.isEmpty()) {
+                                    Text(
+                                        "Название материала",
+                                        style = MaterialTheme.typography.headlineSmall.copy(
+                                            color = MaterialTheme.colorScheme.onSecondaryFixedVariant,
+                                            fontSize = 18.sp,
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        }
+                    }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                    if (!uploadingMaterial) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Закрыть")
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showSettingsDialog = true }) {
-                        Icon(Icons.Filled.MoreVert, contentDescription = "Группа/Курс")
-                    }
-                    if (editingMaterial) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    if (uploadingMaterial) {
+                        CircularProgressIndicator(modifier = Modifier.padding(start = 12.dp, end = 8.dp).size(24.dp))
                     } else {
+                        IconButton(onClick = { showSettingsDialog = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "Группа/Курс")
+                        }
                         IconButton(onClick = {
-                            editingMaterial = true
-                            editingMaterialState = false
-                            scope.launch {
+
+                            if (materialTitle.isBlank()) {
+                                Toast.makeText(context, "Заголовок не может быть пустым", Toast.LENGTH_SHORT).show()
+                                focusRequester.requestFocus()
+                                keyboardController?.show()
+                                return@IconButton
+                            }
+
+                            uploadingMaterial = true
+                            uploadingMaterialState = false
+
+                            jobUploadMaterial?.cancel()
+                            jobUploadMaterial = scope.launch(start = CoroutineStart.LAZY) {
                                 if (materialId == null) {
-                                    val idNewMaterial = viewModel.addMaterial(xmlValue.text)
+                                    val idNewMaterial = viewModel.addMaterial(materialTitle, xmlValue.text)
                                     if (idNewMaterial != null) {
-                                        editingMaterialState = true
+                                        uploadingMaterialState = true
 
                                         /** add Course */
                                         if (selectedCourseId == null) {
@@ -270,11 +353,31 @@ fun AddEditMaterialScreen(
                                     val newId =
                                         viewModel.updateMaterial(materialId.toLong(), xmlValue.text)
                                     if (newId != null) {
-                                        editingMaterialState = true
+                                        uploadingMaterialState = true
                                         updatedMaterialId = newId
                                     }
                                 }
-                                editingMaterial = false
+                                uploadingMaterial = false
+                            }
+
+                            // sync with storage
+                            if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                                val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
+                                if (au.accessToken != null) {
+                                    val courseName = selectedCourseName
+                                    val groupName = selectedGroupName
+                                    val xml = xmlValue.text
+                                    storageViewMode.uploadMaterial(
+                                        accessToken = au.accessToken,
+                                        uniqueFileName = materialTitle,
+                                        xml = xml,
+                                        uniqueCourseName = courseName,
+                                        uniqueGroupName = groupName
+                                        )
+                                }
+                            }
+                            else{
+                                jobUploadMaterial!!.start()
                             }
                         }) {
                             Icon(Icons.Default.CheckCircle, contentDescription = "Сохранить")
@@ -301,6 +404,7 @@ fun AddEditMaterialScreen(
                         .padding(4.dp)
                 ) {
                     OutlinedTextField(
+                        enabled = !uploadingMaterial,
                         value = xmlValue,
                         onValueChange = {
                             var text = it.text
@@ -320,89 +424,91 @@ fun AddEditMaterialScreen(
             }
 
             // small floating toolbar
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.padding(bottom = 12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            if(!uploadingMaterial) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.padding(bottom = 12.dp),
                     ) {
-                        IconButton(onClick = {
-                            xmlValue = insertAtCursor(xmlValue, "<title>Заголовок</title>")
-                        }, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Filled.Title,
-                                contentDescription = "Добавить title",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            val insert =
-                                "<section>\n  <title>Новый раздел</title>\n  <content>\n\n  </content>\n</section>"
-                            xmlValue = insertAtCursor(xmlValue, insert)
-                        }, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                Icons.Filled.TextFields,
-                                contentDescription = "Добавить секцию",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            xmlValue =
-                                insertAtCursor(xmlValue, "<code language=\"cpp\">\n// код\n</code>")
-                        }, modifier = Modifier.size(36.dp)) {
-                            Icon(
-                                imageVector = Icons.Filled.Code,
-                                contentDescription = "Добавить code",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                xmlValue = indentSelection(xmlValue)
-                            },
-                            modifier = Modifier.size(36.dp)
+                        Row(
+                            modifier = Modifier.padding(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.FormatIndentIncrease,
-                                contentDescription = "Отступ",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            IconButton(onClick = {
+                                xmlValue = insertAtCursor(xmlValue, "<title>Заголовок</title>")
+                            }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Filled.Title,
+                                    contentDescription = "Добавить title",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
 
-                        IconButton(
-                            onClick = {
-                                xmlValue = unindentSelection(xmlValue)
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.FormatIndentDecrease,
-                                contentDescription = "Убрать отступ",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                            IconButton(onClick = {
+                                val insert =
+                                    "<section>\n  <title>Новый раздел</title>\n  <content>\n\n  </content>\n</section>"
+                                xmlValue = insertAtCursor(xmlValue, insert)
+                            }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    Icons.Filled.TextFields,
+                                    contentDescription = "Добавить секцию",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
 
-                        VerticalDivider(
-                            modifier = Modifier.height(36.dp),
-                            thickness = DividerDefaults.Thickness,
-                            color = DividerDefaults.color
-                        )
+                            IconButton(onClick = {
+                                xmlValue =
+                                    insertAtCursor(xmlValue, "<code language=\"cpp\">\n// код\n</code>")
+                            }, modifier = Modifier.size(36.dp)) {
+                                Icon(
+                                    imageVector = Icons.Filled.Code,
+                                    contentDescription = "Добавить code",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
 
-                        IconButton(
-                            onClick = { showTagsInfoDialog = true },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Info,
-                                contentDescription = "Информация о тэгs",
-                                modifier = Modifier.size(18.dp)
+                            IconButton(
+                                onClick = {
+                                    xmlValue = indentSelection(xmlValue)
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.FormatIndentIncrease,
+                                    contentDescription = "Отступ",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    xmlValue = unindentSelection(xmlValue)
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.FormatIndentDecrease,
+                                    contentDescription = "Убрать отступ",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            VerticalDivider(
+                                modifier = Modifier.height(36.dp),
+                                thickness = DividerDefaults.Thickness,
+                                color = DividerDefaults.color
                             )
+
+                            IconButton(
+                                onClick = { showTagsInfoDialog = true },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.Info,
+                                    contentDescription = "Информация о тэгs",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -587,14 +693,7 @@ fun MaterialSettingsDialog(
             viewModel.selectedCourseId
         ).collect {
 
-            groups = if (viewModel.selectedCourseId.value != null)
-                db.groupDao().getGroupsByCourseId(viewModel.selectedCourseId.value)
-            else {
-                if (viewModel.selectedCourseName.value == null)
-                    db.groupDao().getAllGroups()
-                else
-                    emptyList()
-            }
+            groups = db.groupDao().getGroupsByCourseId(viewModel.selectedCourseId.value)
         }
     }
 
@@ -682,9 +781,9 @@ fun MaterialSettingsDialog(
                                 }
                             }
                         }
-                        IconButton(onClick = { courseInputMode = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Добавить курс")
-                        }
+//                        IconButton(onClick = { courseInputMode = true }) {
+//                            Icon(Icons.Default.Add, contentDescription = "Добавить курс")
+//                        }
                     }
                 }
 
@@ -762,9 +861,9 @@ fun MaterialSettingsDialog(
                                 }
                             }
                         }
-                        IconButton(onClick = { groupInputMode = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Добавить группу")
-                        }
+//                        IconButton(onClick = { groupInputMode = true }) {
+//                            Icon(Icons.Default.Add, contentDescription = "Добавить группу")
+//                        }
                     }
                 }
             }

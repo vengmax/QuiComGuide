@@ -21,7 +21,7 @@ import javax.inject.Singleton
 import kotlin.math.sqrt
 
 @Singleton
-class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx: Context,
+class EmbeddingProvider @Inject constructor(@param:ApplicationContext private val ctx: Context,
                                             private val tfliteName: String = "intfloat_multilingual-e5-small.tflite",
                                             private val tokenizerName: String = "tokenizer.json",
                                             private val maxLen: Int = 512) {
@@ -85,7 +85,7 @@ class EmbeddingProvider @Inject constructor(@ApplicationContext private val ctx:
         val tk = tokenizer
         val model = interpreter
 
-        val inputIds = tk.encode(text)
+        val inputIds = tk.encode(if(text.length > 512) text.take(512) else text)
         val realLen = inputIds.size
         val padId = tk.tokenToId["<pad>"] ?: 1
 

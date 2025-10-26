@@ -10,11 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 
 @Composable
-fun TestsScreen(contentPadding: PaddingValues) {
+fun TestsScreen(systemPadding: PaddingValues) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(contentPadding),
+            .padding(systemPadding),
         contentAlignment = Alignment.Center
     ) {
         Text("В разработке")

@@ -20,6 +20,15 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("Signed") {
+            storeFile = file("C:\\Users\\maksi\\OneDrive\\Desktop\\QuiComGuide Key\\keystore") // путь к твоему keystore
+            storePassword = "Maks.19283746"
+            keyAlias = "quicomguidekey"
+            keyPassword = "Maks.19283746"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -27,6 +36,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("Signed")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("Signed")
         }
     }
     compileOptions {
@@ -66,6 +79,14 @@ dependencies {
     implementation(libs.compose.shimmer)
     implementation(libs.hilt.android)
     implementation(libs.zip4j)
+    implementation(libs.okhttp)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
+    implementation(libs.play.services.auth)
+    implementation(libs.coil.compose)
+//    implementation(libs.google.api.client.android)
+//    implementation(libs.apis.google.api.services.drive)
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
     ksp(libs.androidx.room.compiler)

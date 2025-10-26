@@ -13,7 +13,7 @@ data class ParsedSection(
 )
 
 data class ParsedMaterial(
-    val title: String,
+//    val title: String,
     val xmlRaw: String,
     val sections: List<ParsedSection>
 )
@@ -71,7 +71,7 @@ object XmlMaterialParser {
                 eventType = parser.next()
             }
 
-            return ParsedMaterial(materialTitle.trim(), rawXml, sections)
+            return ParsedMaterial(/*materialTitle.trim(),*/ rawXml, sections)
         } catch (e: Exception) {
             return null
         }

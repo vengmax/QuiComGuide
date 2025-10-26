@@ -32,8 +32,8 @@ class MaterialsViewModel @Inject constructor(
         return res
     }
 
-    suspend fun addMaterial(xml: String): Long? {
-        return repository.addMaterial(xml)
+    suspend fun addMaterial(title: String, xml: String): Long? {
+        return repository.addMaterial(title, xml)
     }
 
     suspend fun updateMaterial(materialId: Long, xml: String): Long? {

@@ -143,7 +143,7 @@ interface MaterialDao {
         se.elementType AS elementType,
         s.id AS sectionId,
         s.title AS sectionTitle,
-        m.id AS materialId,          -- 👈 добавляем сюда
+        m.id AS materialId,          
         m.title AS materialTitle
     FROM section_element_chunk_embeddings c
     JOIN section_elements se ON c.sectionElementId = se.id

@@ -54,6 +54,7 @@ fun HighlightedWebView(
 
 @Composable
 fun HighlightedWebView(
+    materialTitle: String,
     parsedMaterial: ParsedMaterial,
     supportZoom: Boolean,
     sharedWebView: WebView,
@@ -62,7 +63,7 @@ fun HighlightedWebView(
 ) {
     val isDark = isSystemInDarkTheme()
     val html = remember(parsedMaterial, isDark) {
-        buildHtml(parsedMaterial, backgroundColor, fontSize, isDark)
+        buildHtml(materialTitle, parsedMaterial, backgroundColor, fontSize, isDark)
     }
 
     AndroidView(
@@ -90,6 +91,7 @@ fun HighlightedWebView(
 }
 
 fun buildHtml(
+    materialTitle: String,
     parsed: ParsedMaterial,
     bgColor: Color,
     fontSize: Int = 12,
@@ -105,7 +107,7 @@ fun buildHtml(
     }
 
     return processingHtml(
-        "<h2>${escapeHtml(parsed.title)}</h2>\n$sectionsHtml",
+        "<h2>${escapeHtml(materialTitle)}</h2>\n$sectionsHtml",
         bgColor,
         fontSize,
         isDark
