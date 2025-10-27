@@ -1,5 +1,8 @@
 package com.wllcom.quicomguide
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,6 +19,10 @@ import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
 import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.navigation.compose.currentBackStackEntryAsState
+import com.wllcom.quicomguide.ui.components.BottomBar
+import com.wllcom.quicomguide.ui.screens.SignInScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -36,8 +43,27 @@ class MainActivity : ComponentActivity() {
 
                 // auto signIn
                 val viewModelAuth: AuthViewModel = hiltViewModel()
-                viewModelAuth.signIn(silent = true)
+                val connectivityManager =
+                    this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
+                val network = connectivityManager.activeNetwork
+                val activeNetwork = connectivityManager.getNetworkCapabilities(network)
+
+                val hasInternet = when {
+                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false -> true
+                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ?: false -> true
+                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ?: false -> true
+                    else -> false
+                }
+
+                if (hasInternet) {
+                    viewModelAuth.signIn(silent = true)
+                }
+//                val navBackStackEntry by navController.currentBackStackEntryAsState()
+//                val currentRoute = navBackStackEntry?.destination?.route
+//
+//                // показываем bottomBar только для корневых вкладок
+//                val showBottomBar = currentRoute in listOf("home", "tests", "library", "profile")
                 Scaffold { systemPadding ->
                     AppNavHost(
                         navController = navController,

@@ -123,7 +123,7 @@ fun MaterialCardGroup(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Удалить",
-                        tint = Color.White,
+                        tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.size(20.dp)
                     )
                 }

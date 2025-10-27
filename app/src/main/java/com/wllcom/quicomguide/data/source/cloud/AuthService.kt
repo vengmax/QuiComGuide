@@ -21,7 +21,7 @@ interface AuthService {
         data class Error(val exception: Throwable) : AuthState()
     }
 
-    val authState: StateFlow<AuthState>
+    val authState: StateFlow<AuthState?>
     suspend fun signIn(silent: Boolean): PendingIntent?
     suspend fun signOut()
 }

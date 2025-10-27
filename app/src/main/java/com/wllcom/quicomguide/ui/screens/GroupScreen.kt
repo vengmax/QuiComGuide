@@ -2,9 +2,13 @@ package com.wllcom.quicomguide.ui.screens
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +33,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -109,29 +114,14 @@ fun GroupScreen(
         }
     }
 
+    val density = LocalDensity.current
+    val insets = WindowInsets.navigationBars.asPaddingValues()
+    val navigationPadding = with(density) {
+        insets.calculateBottomPadding()
+    }
+
     // Scaffold с TopAppBar (Back + Edit)
     Scaffold(
-        topBar = {
-            TopBarWithSearch(
-                title = { if (!isEditMode) Text(text = "Группа: $groupId") else Text("Редактирование") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { isEditMode = !isEditMode }) {
-                        Icon(
-                            imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
-                            contentDescription = if (!isEditMode) "Edit" else "Close edit"
-                        )
-                    }
-                },
-                query = query,
-                onQueryChange = { query = it },
-                onDebouncedQuery = { debounced -> query = debounced },
-            )
-        },
         snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState,
@@ -145,6 +135,9 @@ fun GroupScreen(
                 .padding(8.dp)
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    Spacer(modifier = Modifier.height(64.dp))
+                }
                 items(filtered) { mat ->
                     val preview = previewsById[mat.id] ?: ""
                     MaterialCard(
@@ -194,8 +187,28 @@ fun GroupScreen(
                         }
                     )
                 }
+                item { Spacer(modifier = Modifier.height(60.dp + navigationPadding)) }
             }
         }
+        TopBarWithSearch(
+            title = { if (!isEditMode) Text(text = "Группа: $groupId") else Text("Редактирование") },
+            navigationIcon = {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                }
+            },
+            actions = {
+                IconButton(onClick = { isEditMode = !isEditMode }) {
+                    Icon(
+                        imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
+                        contentDescription = if (!isEditMode) "Edit" else "Close edit"
+                    )
+                }
+            },
+            query = query,
+            onQueryChange = { query = it },
+            onDebouncedQuery = { debounced -> query = debounced },
+        )
     }
 }
 

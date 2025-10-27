@@ -65,21 +65,21 @@ fun ProfileScreen(
     viewModel: AuthViewModel = hiltViewModel()
 ) {
 
-    val pendingIntent by viewModel.pendingIntentEvent.collectAsState()
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            viewModel.signIn()
-        }
-    }
-
-    LaunchedEffect(pendingIntent) {
-        pendingIntent?.let { p ->
-            val request = IntentSenderRequest.Builder(p.intentSender).build()
-            launcher.launch(request)
-        }
-    }
+//    val pendingIntent by viewModel.pendingIntentEvent.collectAsState()
+//    val launcher = rememberLauncherForActivityResult(
+//        ActivityResultContracts.StartIntentSenderForResult()
+//    ) { result ->
+//        if (result.resultCode == Activity.RESULT_OK) {
+//            viewModel.signIn()
+//        }
+//    }
+//
+//    LaunchedEffect(pendingIntent) {
+//        pendingIntent?.let { p ->
+//            val request = IntentSenderRequest.Builder(p.intentSender).build()
+//            launcher.launch(request)
+//        }
+//    }
 
     val authState by viewModel.authState.collectAsState()
     var screen by remember(authState) {
@@ -87,7 +87,7 @@ fun ProfileScreen(
     }
 
     when (screen) {
-        Screen.LOGIN -> LoginScreen(systemPadding = systemPadding, navController = navController) { viewModel.signIn() }
+        Screen.LOGIN -> LoginScreen(systemPadding = systemPadding, navController = navController) { navController.navigate("signIn") }
         Screen.PROFILE -> ProfileScreen(
             systemPadding = systemPadding,
             navController = navController,

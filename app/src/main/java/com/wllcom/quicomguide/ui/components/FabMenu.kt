@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -14,13 +15,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.CollectionsBookmark
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -83,8 +87,10 @@ fun FabMenu(
                 end = 0.dp
             )
         ) {
-            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
+            if (expanded) {
                 ExtendedFloatingActionButton(
+                    containerColor = Color.Transparent,
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     onClick = { onAction("material"); expanded = false },
                     text = { Text("Материал") },
                     icon = {
@@ -93,11 +99,14 @@ fun FabMenu(
                             contentDescription = "Материал"
                         )
                     },
-                    modifier = Modifier.height(45.dp)
+                    modifier = Modifier
+                        .height(45.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
                 )
-            }
-            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
                 ExtendedFloatingActionButton(
+                    containerColor = Color.Transparent,
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     onClick = { onAction("group"); expanded = false },
                     text = { Text("Группа") },
                     icon = {
@@ -106,24 +115,43 @@ fun FabMenu(
                             contentDescription = "Группа"
                         )
                     },
-                    modifier = Modifier.height(45.dp)
+                    modifier = Modifier
+                        .height(45.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            RoundedCornerShape(28.dp)
+                        )
                 )
-            }
-            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
                 ExtendedFloatingActionButton(
+                    containerColor = Color.Transparent,
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
                     onClick = {
                         onAction("course"); expanded = false
                     },
                     text = { Text("Курс") },
                     icon = { Icon(Icons.Default.Folder, contentDescription = "Курс") },
-                    modifier = Modifier.height(45.dp)
+                    modifier = Modifier
+                        .height(45.dp)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .border(
+                            1.dp,
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            RoundedCornerShape(28.dp)
+                        )
                 )
             }
         }
 
         FloatingActionButton(
+            containerColor = Color.Transparent,
+            elevation = FloatingActionButtonDefaults.elevation(0.dp),
             onClick = { expanded = !expanded },
-            modifier = Modifier.size(45.dp)
+            modifier = Modifier
+                .size(45.dp)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
         ) {
             Text(mainFabText)
         }

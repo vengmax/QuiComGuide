@@ -10,12 +10,18 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.wllcom.quicomguide.data.source.cloud.AuthService
 import com.wllcom.quicomguide.ui.screens.*
+import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
 import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -25,8 +31,11 @@ fun AppNavHost(
     viewModel: MaterialsViewModel,
     systemPadding: PaddingValues
 ) {
-    // init WebView
     val context = LocalContext.current
+    val viewModelAuth: AuthViewModel = hiltViewModel()
+    val authState by viewModelAuth.authState.collectAsState()
+
+    // init WebView
     val sharedWebView = remember {
         WebView(context).apply {
             settings.javaScriptEnabled = true
@@ -64,6 +73,9 @@ fun AppNavHost(
     }
 
     NavHost(navController = navController, startDestination = "home") {
+        composable("signIn") {
+            SignInScreen(navController)
+        }
         composable("home") {
             HomeScreen(
                 systemPadding = systemPadding,
@@ -122,6 +134,12 @@ fun AppNavHost(
                 viewModel = viewModel,
                 materialId = materialId,
             )
+        }
+    }
+
+    LaunchedEffect(authState) {
+        if (authState != null && authState !is AuthService.AuthState.Authenticated) {
+            navController.navigate("signIn")
         }
     }
 }

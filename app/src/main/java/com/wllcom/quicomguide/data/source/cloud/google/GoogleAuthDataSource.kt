@@ -46,8 +46,8 @@ class GoogleAuthDataSource @Inject constructor(
         const val USER_INFO_SCOPE = "https://www.googleapis.com/auth/userinfo.profile"
     }
 
-    private val _authState = MutableStateFlow<AuthService.AuthState>(AuthService.AuthState.NotAuthenticated)
-    override val authState: StateFlow<AuthService.AuthState> = _authState.asStateFlow()
+    private val _authState = MutableStateFlow<AuthService.AuthState?>(null)
+    override val authState: StateFlow<AuthService.AuthState?> = _authState.asStateFlow()
 
     override suspend fun signIn(silent: Boolean): PendingIntent? = withContext(Dispatchers.IO) {
         try {
@@ -66,6 +66,8 @@ class GoogleAuthDataSource @Inject constructor(
                     val pendingIntent = authorizationResult.pendingIntent
                     return@withContext pendingIntent
                 }
+                else
+                    _authState.value = AuthService.AuthState.NotAuthenticated
             } else {
                 val accessToken = authorizationResult.accessToken
 
@@ -108,7 +110,7 @@ class GoogleAuthDataSource @Inject constructor(
                 if(email != null)
                     revokeGoogleAccess(listScope, email)
 
-                _authState.value = AuthService.AuthState.NotAuthenticated
+                _authState.value = null
             }
         } catch (e: Exception) {
             Log.e(TAG, "Auth flow failed", e)

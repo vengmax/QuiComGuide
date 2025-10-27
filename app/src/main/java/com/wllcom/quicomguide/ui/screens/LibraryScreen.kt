@@ -1,16 +1,23 @@
 package com.wllcom.quicomguide.ui.screens
 
+import android.widget.Space
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +38,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -53,6 +61,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -97,7 +106,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
 
     val coursesList by courseDao.getAllCoursesFlow()
         .collectAsStateWithLifecycle(initialValue = emptyList())
-    if(coursesList.isEmpty() && isEditModeDrawer){
+    if (coursesList.isEmpty() && isEditModeDrawer) {
         isEditModeDrawer = false
     }
     var selectedCourse by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -139,7 +148,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
         }
     }
 
-    if(baseMaterials.isEmpty() && groupsWithMaterials.isEmpty() && isEditMode){
+    if (baseMaterials.isEmpty() && groupsWithMaterials.isEmpty() && isEditMode) {
         isEditMode = false
     }
 
@@ -163,8 +172,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     LaunchedEffect(statusCreateCourse) {
         if (statusCreateCourse == true && creatingNewCourse) {
             jobCreateCourse!!.start()
-        }
-        else if (statusCreateCourse == false && creatingNewCourse){
+        } else if (statusCreateCourse == false && creatingNewCourse) {
             snackbarHostState.showSnackbar(message = "Ошибка операции", withDismissAction = true)
             creatingNewCourse = false
         }
@@ -177,8 +185,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     LaunchedEffect(statusDeleteCourse) {
         if (statusDeleteCourse == true && deletingCourse) {
             jobDeleteCourse!!.start()
-        }
-        else if (statusDeleteCourse == false && deletingCourse){
+        } else if (statusDeleteCourse == false && deletingCourse) {
             snackbarHostState.showSnackbar(message = "Ошибка операции", withDismissAction = true)
             deletingCourse = false
         }
@@ -191,8 +198,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     LaunchedEffect(statusCreateGroup) {
         if (statusCreateGroup == true && creatingNewGroup) {
             jobCreateGroup!!.start()
-        }
-        else if (statusCreateGroup == false && creatingNewGroup){
+        } else if (statusCreateGroup == false && creatingNewGroup) {
             snackbarHostState.showSnackbar(message = "Ошибка операции", withDismissAction = true)
             creatingNewGroup = false
         }
@@ -205,8 +211,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     LaunchedEffect(statusDeleteGroup) {
         if (statusDeleteGroup == true && deletingGroup) {
             jobDeleteGroup!!.start()
-        }
-        else if (statusDeleteGroup == false && deletingGroup){
+        } else if (statusDeleteGroup == false && deletingGroup) {
             snackbarHostState.showSnackbar(message = "Ошибка операции", withDismissAction = true)
             deletingGroup = false
         }
@@ -219,11 +224,20 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     LaunchedEffect(statusDeleteMaterial) {
         if (statusDeleteMaterial == true && deletingMaterial) {
             jobDeleteMaterial!!.start()
-        }
-        else if (statusDeleteMaterial == false && deletingMaterial){
+        } else if (statusDeleteMaterial == false && deletingMaterial) {
             snackbarHostState.showSnackbar(message = "Ошибка операции", withDismissAction = true)
             deletingMaterial = false
         }
+    }
+
+    val density = LocalDensity.current
+    val insets = WindowInsets.navigationBars.asPaddingValues()
+    val navigationPadding = with(density) {
+        insets.calculateBottomPadding()
+    }
+    val insetsStatus = WindowInsets.statusBars.asPaddingValues()
+    val statusPadding = with(density) {
+        insetsStatus.calculateTopPadding()
     }
 
     ModalNavigationDrawer(
@@ -244,13 +258,14 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         Icon(
                             imageVector = if (!isEditModeDrawer) Icons.Default.Edit else Icons.Default.Close,
                             contentDescription = if (!isEditModeDrawer) "Edit" else "Close edit",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.size(24.dp)
                         )
                     }
                 }
                 HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
                 ListItem(
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     headlineContent = { Text("Все курсы") },
                     supportingContent = { if (selectedCourse == null) Text("Фильтр отключён") },
                     modifier = Modifier.clickable {
@@ -263,6 +278,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                     items(coursesList) { course ->
                         Box(modifier = Modifier.fillMaxWidth()) {
                             ListItem(
+                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                 headlineContent = { Text(course.name) },
                                 supportingContent = { if (selectedCourse == course.id) Text("Выбран") },
                                 modifier = Modifier.clickable {
@@ -281,7 +297,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Удалить",
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onBackground,
                                         modifier = Modifier.size(23.dp)
                                     )
                                 }
@@ -301,167 +317,75 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                 )
             }
         ) { bottomBarPadding ->
-            Scaffold(
-                topBar = {
-                    TopBarWithSearch(
-                        title = {
-                            if (!isEditMode) {
-                                if (selectedCourse != null) {
-                                    val name = coursesList.find { it.id == selectedCourse }?.name
-                                        ?: selectedCourse.toString()
-                                    Text("Курс: $name")
-                                } else Text("Все курсы")
-                            } else Text("Редактирование")
-                        },
-                        navigationIcon = {
-                            if (!isEditMode) {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Default.Menu, contentDescription = "Открыть меню")
-                                }
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = { isEditMode = !isEditMode }) {
-                                Icon(
-                                    imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
-                                    contentDescription = if (!isEditMode) "Edit" else "Close edit"
-                                )
-                            }
-                        },
-                        query = query,
-                        onQueryChange = { query = it },
-                        onDebouncedQuery = { debounced -> query = debounced },
-                    )
-                }
-            ) { innerPadding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                ) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(groupsWithMaterials, key = { "group-${it.group.id}" }) { gwm ->
-                            val group = gwm.group
-                            val displayedGroupMaterials = remember(gwm.materials, baseIds) {
-                                if (selectedCourse == null) gwm.materials else gwm.materials.filter { it.id in baseIds }
-                            }
 
-                            MaterialCardGroup(
-                                groupName = group.name,
-                                listMaterials = displayedGroupMaterials.take(3),
-                                editMode = isEditMode,
-                                deletingGroup = deletingGroup,
-                                onClick = { navController.navigate("group/${group.id}") },
-                                onLongClick = { isEditMode = !isEditMode },
-                                onDeleteClick = {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
 
-                                    deletingGroup = true
-
-                                    jobDeleteGroup?.cancel()
-                                    jobDeleteGroup = scope.launch(start = CoroutineStart.LAZY) {
-                                        withContext(Dispatchers.IO) {
-                                            dao.deleteMaterialsByGroupId(group.id)
-                                            groupDao.deleteGroupById(group.id)
-                                        }
-                                        deletingGroup = false
-                                        snackbarHostState.showSnackbar("Группа удалена", withDismissAction = true)
-                                    }
-
-                                    if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
-                                        val groupName = group.name
-                                        val courseId = selectedCourse
-                                        val courseName = coursesList.find { it.id == courseId }?.name
-                                        val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                                        if(au.accessToken != null) {
-                                            storageViewMode.deleteGroup(
-                                                au.accessToken,
-                                                groupName,
-                                                courseName
-                                            )
-                                        }
-                                    }
-                                    else {
-                                        jobDeleteMaterial!!.start()
-                                    }
-                                }
-                            ) { id, title, text ->
-                                MaterialCard(
-                                    title = title,
-                                    text = text,
-                                    editMode = isEditMode,
-                                    deletingMaterial = deletingMaterial,
-                                    modifier = Modifier
-                                        .size(width = 260.dp, height = 120.dp)
-                                        .padding(end = 8.dp),
-                                    onClick = { navController.navigate("material/${id}") },
-                                    onLongClick = { isEditMode = !isEditMode },
-                                    onDeleteClick = {
-
-                                        deletingMaterial = true
-
-                                        val matId = id
-                                        jobDeleteMaterial?.cancel()
-                                        jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
-                                            withContext(Dispatchers.IO) {
-                                                dao.deleteMaterialById(matId)
-                                            }
-                                            deletingMaterial = false
-                                            snackbarHostState.showSnackbar(
-                                                "Материал удалён",
-                                                withDismissAction = true
-                                            )
-                                        }
-
-                                        if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
-                                            val materialName = title
-                                            val groupName = group.name
-                                            val courseId = selectedCourse
-                                            val courseName = coursesList.find { it.id == courseId }?.name
-                                            val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                                            if(au.accessToken != null) {
-                                                storageViewMode.deleteMaterial(
-                                                    au.accessToken,
-                                                    materialName,
-                                                    courseName,
-                                                    groupName
-                                                )
-                                            }
-                                        }
-                                        else {
-                                            jobDeleteMaterial!!.start()
-                                        }
-                                    }
-                                )
-                            }
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    item {
+                        Spacer(modifier = Modifier.height(statusPadding + 64.dp))
+                    }
+                    items(groupsWithMaterials, key = { "group-${it.group.id}" }) { gwm ->
+                        val group = gwm.group
+                        val displayedGroupMaterials = remember(gwm.materials, baseIds) {
+                            if (selectedCourse == null) gwm.materials else gwm.materials.filter { it.id in baseIds }
                         }
 
-                        item {
-                            Text(
-                                "Прочие материалы",
-                                style = MaterialTheme.typography.titleMedium,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+                        MaterialCardGroup(
+                            groupName = group.name,
+                            listMaterials = displayedGroupMaterials.take(3),
+                            editMode = isEditMode,
+                            deletingGroup = deletingGroup,
+                            onClick = { navController.navigate("group/${group.id}") },
+                            onLongClick = { isEditMode = !isEditMode },
+                            onDeleteClick = {
 
-                        val ungrouped = filtered.filter { it.id !in groupedIds }
-                        items(ungrouped, key = { "mat-${it.id}" }) { mat ->
-                            val preview = previewsById[mat.id] ?: ""
+                                deletingGroup = true
+
+                                jobDeleteGroup?.cancel()
+                                jobDeleteGroup = scope.launch(start = CoroutineStart.LAZY) {
+                                    withContext(Dispatchers.IO) {
+                                        dao.deleteMaterialsByGroupId(group.id)
+                                        groupDao.deleteGroupById(group.id)
+                                    }
+                                    deletingGroup = false
+                                    snackbarHostState.showSnackbar("Группа удалена", withDismissAction = true)
+                                }
+
+                                if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                                    val groupName = group.name
+                                    val courseId = selectedCourse
+                                    val courseName = coursesList.find { it.id == courseId }?.name
+                                    val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
+                                    if (au.accessToken != null) {
+                                        storageViewMode.deleteGroup(
+                                            au.accessToken,
+                                            groupName,
+                                            courseName
+                                        )
+                                    }
+                                } else {
+                                    jobDeleteGroup!!.start()
+                                }
+                            }
+                        ) { id, title, text ->
                             MaterialCard(
-                                title = mat.title,
-                                text = preview,
+                                title = title,
+                                text = text,
                                 editMode = isEditMode,
                                 deletingMaterial = deletingMaterial,
                                 modifier = Modifier
-                                    .height(105.dp)
-                                    .fillMaxWidth()
-                                    .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
-                                onClick = { navController.navigate("material/${mat.id}") },
+                                    .size(width = 260.dp, height = 120.dp)
+                                    .padding(end = 8.dp),
+                                onClick = { navController.navigate("material/${id}") },
                                 onLongClick = { isEditMode = !isEditMode },
                                 onDeleteClick = {
 
                                     deletingMaterial = true
 
-                                    val matId = mat.id
+                                    val matId = id
                                     jobDeleteMaterial?.cancel()
                                     jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
                                         withContext(Dispatchers.IO) {
@@ -474,38 +398,125 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                                         )
                                     }
 
-                                    if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
-                                        val materialName = mat.title
+                                    if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                                        val materialName = title
+                                        val groupName = group.name
                                         val courseId = selectedCourse
                                         val courseName = coursesList.find { it.id == courseId }?.name
                                         val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                                        if(au.accessToken != null) {
+                                        if (au.accessToken != null) {
                                             storageViewMode.deleteMaterial(
                                                 au.accessToken,
                                                 materialName,
                                                 courseName,
-                                                null
+                                                groupName
                                             )
                                         }
-                                    }
-                                    else {
+                                    } else {
                                         jobDeleteMaterial!!.start()
                                     }
                                 }
                             )
                         }
-
-                        item { Spacer(modifier = Modifier.height(88.dp)) }
                     }
+
+                    item {
+                        Text(
+                            "Прочие материалы",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+
+                    val ungrouped = filtered.filter { it.id !in groupedIds }
+                    items(ungrouped, key = { "mat-${it.id}" }) { mat ->
+                        val preview = previewsById[mat.id] ?: ""
+                        MaterialCard(
+                            title = mat.title,
+                            text = preview,
+                            editMode = isEditMode,
+                            deletingMaterial = deletingMaterial,
+                            modifier = Modifier
+                                .height(105.dp)
+                                .fillMaxWidth()
+                                .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
+                            onClick = { navController.navigate("material/${mat.id}") },
+                            onLongClick = { isEditMode = !isEditMode },
+                            onDeleteClick = {
+
+                                deletingMaterial = true
+
+                                val matId = mat.id
+                                jobDeleteMaterial?.cancel()
+                                jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
+                                    withContext(Dispatchers.IO) {
+                                        dao.deleteMaterialById(matId)
+                                    }
+                                    deletingMaterial = false
+                                    snackbarHostState.showSnackbar(
+                                        "Материал удалён",
+                                        withDismissAction = true
+                                    )
+                                }
+
+                                if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                                    val materialName = mat.title
+                                    val courseId = selectedCourse
+                                    val courseName = coursesList.find { it.id == courseId }?.name
+                                    val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
+                                    if (au.accessToken != null) {
+                                        storageViewMode.deleteMaterial(
+                                            au.accessToken,
+                                            materialName,
+                                            courseName,
+                                            null
+                                        )
+                                    }
+                                } else {
+                                    jobDeleteMaterial!!.start()
+                                }
+                            }
+                        )
+                    }
+
+                    item { Spacer(modifier = Modifier.height(60.dp + navigationPadding)) }
                 }
             }
-
+            TopBarWithSearch(
+                title = {
+                    if (!isEditMode) {
+                        if (selectedCourse != null) {
+                            val name = coursesList.find { it.id == selectedCourse }?.name
+                                ?: selectedCourse.toString()
+                            Text("Курс: $name")
+                        } else Text("Все курсы")
+                    } else Text("Редактирование")
+                },
+                navigationIcon = {
+                    if (!isEditMode) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Открыть меню")
+                        }
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { isEditMode = !isEditMode }) {
+                        Icon(
+                            imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
+                            contentDescription = if (!isEditMode) "Edit" else "Close edit"
+                        )
+                    }
+                },
+                query = query,
+                onQueryChange = { query = it },
+                onDebouncedQuery = { debounced -> query = debounced },
+            )
             if (!isEditMode) {
                 FabMenu(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(bottomBarPadding)
-                        .padding(16.dp)
+                        .padding(end = 16.dp)
                 ) { action ->
                     when (action) {
                         "material" -> navController.navigate("addMaterial")
@@ -526,7 +537,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
 
     if (toDeleteCourse != null) {
         AlertDialog(
-            onDismissRequest = { if(!deletingCourse) toDeleteCourse = null },
+            onDismissRequest = { if (!deletingCourse) toDeleteCourse = null },
             title = { Text("Удалить материал?") },
             text = { Text("Это действие нельзя будет отменить.") },
             confirmButton = {
@@ -551,10 +562,10 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         snackbarHostState.showSnackbar("Курс удалён", withDismissAction = true)
                     }
 
-                    if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
+                    if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
                         val nameCourse = coursesList.find { it.id == toDeleteCourse }?.name!!
                         val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                        if(au.accessToken != null)
+                        if (au.accessToken != null)
                             storageViewMode.deleteCourse(au.accessToken, nameCourse)
                     }
                     // offline mode
@@ -609,10 +620,10 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         }
 
                         // sync with storage
-                        if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
+                        if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
                             val courseName = coursesList.find { it.id == courseId }?.name
                             val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                            if(au.accessToken != null) {
+                            if (au.accessToken != null) {
                                 storageViewMode.createGroup(
                                     accessToken = au.accessToken,
                                     uniqueGroupName = name,
@@ -653,7 +664,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     if (showCreateCourseDialog) {
         AlertDialog(
             onDismissRequest = {
-                if(!creatingNewCourse) {
+                if (!creatingNewCourse) {
                     showCreateCourseDialog = false
                     newName = ""
                 }
@@ -661,7 +672,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
             confirmButton = {
                 TextButton(onClick = {
                     val name = newName.trim()
-                    if(name.isNotEmpty()) {
+                    if (name.isNotEmpty()) {
                         creatingNewCourse = true
 
                         jobCreateCourse?.cancel()
@@ -678,20 +689,20 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                                 storageViewMode.createCourse(au.accessToken, name)
                         }
                         // offline mode
-                        else{
+                        else {
                             jobCreateCourse!!.start()
                         }
                     }
                 }) {
                     if (!creatingNewCourse)
                         Text("Создать")
-                    else{
+                    else {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     }
                 }
             },
             dismissButton = {
-                if(!creatingNewCourse) {
+                if (!creatingNewCourse) {
                     TextButton(onClick = {
                         showCreateCourseDialog = false; newName = ""
                     }) { Text("Отмена") }

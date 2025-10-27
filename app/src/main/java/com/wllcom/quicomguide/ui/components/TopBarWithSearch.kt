@@ -1,10 +1,13 @@
 package com.wllcom.quicomguide.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -16,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,6 +29,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -66,9 +72,24 @@ fun TopBarWithSearch(
                 onDebouncedQuery(debounced)
             }
     }
-
+    val colorDrawBottomBorder = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     if (isSearching) {
         TopAppBar(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                .drawBehind {
+                    val strokeWidth = 1.dp.toPx()
+                    val y = size.height - strokeWidth / 2
+                    drawLine(
+                        color = colorDrawBottomBorder,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = strokeWidth
+                    )
+                },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+            ),
             title = {
                 BasicTextField(
                     value = query,
@@ -113,13 +134,28 @@ fun TopBarWithSearch(
         )
     } else {
         TopAppBar(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                .drawBehind {
+                    val strokeWidth = 1.dp.toPx()
+                    val y = size.height - strokeWidth / 2
+                    drawLine(
+                        color = colorDrawBottomBorder,
+                        start = Offset(0f, y),
+                        end = Offset(size.width, y),
+                        strokeWidth = strokeWidth
+                    )
+                },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+            ),
             title = title,
             navigationIcon = navigationIcon,
             actions = {
                 IconButton(onClick = { isSearching = true }) {
                     Icon(Icons.Default.Search, contentDescription = "Search")
                 }
-                actions();
+                actions()
             }
         )
     }

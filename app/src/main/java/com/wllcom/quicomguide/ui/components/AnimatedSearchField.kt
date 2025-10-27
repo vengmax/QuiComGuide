@@ -74,7 +74,7 @@ fun AnimatedSearchField(
 
     // variables
     val borderPadding = 8.dp
-    val searchPadding = 12.dp
+    val searchPadding = 16.dp
     val innerColor = MaterialTheme.colorScheme.background
     var expanded by rememberSaveable { mutableStateOf(false) }
     var selectedSearchMode by rememberSaveable { mutableStateOf<EnumSearchMode>(EnumSearchMode.FTS) }
@@ -150,7 +150,7 @@ fun AnimatedSearchField(
                 singleLine = true,
                 textStyle = TextStyle(
                     color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 20.sp,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Normal
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),

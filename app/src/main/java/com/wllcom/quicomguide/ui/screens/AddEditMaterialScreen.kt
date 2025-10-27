@@ -37,6 +37,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -68,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
@@ -207,7 +209,8 @@ fun AddEditMaterialScreen(
         }
     }
     BackHandler(enabled = uploadingMaterial) {}
-    if (!uploadingMaterial && uploadingMaterialState && statusUploadMaterial == true) {
+    if (!uploadingMaterial && uploadingMaterialState &&
+        (statusUploadMaterial == true || authViewMode.authState.collectAsState().value !is AuthService.AuthState.Authenticated)) {
         navController.previousBackStackEntry
             ?.savedStateHandle
             ?.set("updatedMaterialId", updatedMaterialId)
@@ -221,7 +224,6 @@ fun AddEditMaterialScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                modifier = Modifier.padding(end = 8.dp),
                 title = {
                     if (uploadingMaterial || materialId != null) {
                         Text(text = materialTitle, softWrap = false, maxLines = 1)
@@ -242,7 +244,7 @@ fun AddEditMaterialScreen(
                                 .border(
                                     width = 1.dp,
                                     color = MaterialTheme.colorScheme.outline,
-                                    shape = RoundedCornerShape(5.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 )
                                 .padding(horizontal = 8.dp)
                                 .focusRequester(focusRequester)
@@ -252,7 +254,7 @@ fun AddEditMaterialScreen(
                                     Text(
                                         "Название материала",
                                         style = MaterialTheme.typography.headlineSmall.copy(
-                                            color = MaterialTheme.colorScheme.onSecondaryFixedVariant,
+                                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
                                             fontSize = 18.sp,
                                         )
                                     )
@@ -264,7 +266,8 @@ fun AddEditMaterialScreen(
                 },
                 navigationIcon = {
                     if (!uploadingMaterial) {
-                        IconButton(onClick = { navController.popBackStack() }) {
+                        IconButton(onClick = { navController.popBackStack() },
+                            modifier = Modifier.padding(horizontal = 2.dp).size(35.dp)) {
                             Icon(Icons.Filled.Close, contentDescription = "Закрыть")
                         }
                     }
@@ -273,10 +276,11 @@ fun AddEditMaterialScreen(
                     if (uploadingMaterial) {
                         CircularProgressIndicator(modifier = Modifier.padding(start = 12.dp, end = 8.dp).size(24.dp))
                     } else {
-                        IconButton(onClick = { showSettingsDialog = true }) {
+                        IconButton(modifier = Modifier.padding(start = 2.dp, end = 4.dp).size(35.dp),
+                            onClick = { showSettingsDialog = true }) {
                             Icon(Icons.Filled.MoreVert, contentDescription = "Группа/Курс")
                         }
-                        IconButton(onClick = {
+                        IconButton(modifier = Modifier.padding(horizontal = 2.dp).size(35.dp), onClick = {
 
                             if (materialTitle.isBlank()) {
                                 Toast.makeText(context, "Заголовок не может быть пустым", Toast.LENGTH_SHORT).show()
@@ -425,10 +429,16 @@ fun AddEditMaterialScreen(
 
             // small floating toolbar
             if(!uploadingMaterial) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    ,
+                    contentAlignment = Alignment.BottomCenter) {
                     Card(
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.padding(bottom = 12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier.padding(bottom = 12.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(28.dp)),
                     ) {
                         Row(
                             modifier = Modifier.padding(6.dp),
