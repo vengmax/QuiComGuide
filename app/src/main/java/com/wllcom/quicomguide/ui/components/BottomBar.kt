@@ -2,16 +2,15 @@ package com.wllcom.quicomguide.ui.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,20 +23,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +47,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
@@ -70,6 +65,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.wllcom.quicomguide.ui.navigation.bottomNavItems
+import com.wllcom.quicomguide.ui.styles.bottomBarStyle
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -93,12 +89,12 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
     }
 
     val islandWidth = 290.dp
-    val islandHeight = 60.dp + navigationPadding
+    val islandHeight = 56.dp
     val islandRadius = 28.dp
     val islandHorizontalPadding = 0.dp
     val islandInnerHorizontalPadding = 0.dp
     val slotInnerVerticalPadding = 0.dp
-    val bottomPadding = 6.dp + navigationPadding
+    val bottomPadding = 8.dp + navigationPadding
 
     var islandInnerPx by remember { mutableStateOf(0) }
 
@@ -156,11 +152,12 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
         }
     }
 
+    val isDarkTheme = isSystemInDarkTheme()
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = islandHorizontalPadding, vertical = 0.dp),
-//            .height(islandHeight),
+            .padding(horizontal = islandHorizontalPadding, vertical = bottomPadding),
         contentAlignment = Alignment.BottomCenter
     ) {
 
@@ -177,7 +174,7 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                 .height(islandHeight)
                 .width(islandWidth)
 
-                .padding(bottom = bottomPadding)
+
 //                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f), RoundedCornerShape(islandRadius))
 
                 .align(Alignment.BottomCenter)
@@ -187,8 +184,12 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = islandInnerHorizontalPadding)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(islandRadius))
-                    .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(islandRadius))
+                    .background(bottomBarStyle(islandHeight, islandWidth).brush, RoundedCornerShape(islandRadius))
+                    .border(
+                        1.dp,
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        RoundedCornerShape(islandRadius)
+                    )
                     .onGloballyPositioned { coords ->
                         val w = coords.size.width
                         islandInnerPx = w
@@ -242,7 +243,10 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                                             animatedOffsetX.snapTo(newX)
                                             // обновим rect по новому offset
                                             highlightRect = Rect(
-                                                offset = Offset(newX, (with(density) { (islandHeight.toPx() - islandHeight.toPx()) / 2f })),
+                                                offset = Offset(
+                                                    newX,
+                                                    (with(density) { (islandHeight.toPx() - islandHeight.toPx()) / 2f })
+                                                ),
                                                 size = Size(highlightWidthPx.toFloat(), islandHeight.toPx())
                                             )
                                         }
@@ -263,7 +267,10 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                                 )
                                 // обновим rect
                                 highlightRect = Rect(
-                                    offset = Offset(animatedOffsetX.value, (with(density) { (islandHeight.toPx() - islandHeight.toPx()) / 2f })),
+                                    offset = Offset(
+                                        animatedOffsetX.value,
+                                        (with(density) { (islandHeight.toPx() - islandHeight.toPx()) / 2f })
+                                    ),
                                     size = Size(highlightWidthPx.toFloat(), islandHeight.toPx())
                                 )
 
@@ -350,7 +357,10 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                                                 val slotWidth = islandInnerPx.toFloat() / items.size
                                                 val targetCenterX = slotWidth * index + slotWidth / 2f
                                                 val targetX = targetCenterX - highlightWidthPx / 2f
-                                                animatedOffsetX.animateTo(targetX, animationSpec = tween(260, easing = FastOutSlowInEasing))
+                                                animatedOffsetX.animateTo(
+                                                    targetX,
+                                                    animationSpec = tween(260, easing = FastOutSlowInEasing)
+                                                )
                                             }
                                             selectedIndex = index
                                             val screenTo = screen
@@ -378,6 +388,18 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
                                     .wrapContentSize()
+                                    .let{
+                                        if(isDarkTheme) {
+                                            it.graphicsLayer {
+                                                shadowElevation = 12.dp.toPx()
+                                                shape = CircleShape
+                                                clip = false
+                                            }
+                                        }
+                                        else
+                                            it
+                                    }
+
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -396,10 +418,14 @@ fun BottomBar(navController: NavController, modifier: Modifier = Modifier) {
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = screen.title,
-                                        style = MaterialTheme.typography.labelSmall,
+                                        style = MaterialTheme.typography.labelSmall.copy(shadow = Shadow(
+                                            color = if(isDarkTheme) Color.Black else Color.White,
+                                            offset = Offset(4f, 4f),
+                                            blurRadius = 30f
+                                        )),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 1f)
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 1f),
                                     )
                                 }
                             }

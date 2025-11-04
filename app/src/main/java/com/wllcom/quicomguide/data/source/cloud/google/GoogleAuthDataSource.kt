@@ -33,15 +33,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resumeWithException
 import androidx.core.net.toUri
+import com.wllcom.quicomguide.data.repository.SettingsRepository
 
 
 @Singleton
 class GoogleAuthDataSource @Inject constructor(
-    @param:ApplicationContext private val appContext: Context
+    @param:ApplicationContext private val appContext: Context,
+    private val settigsRepository: SettingsRepository
 ): AuthService {
 
     companion object {
-        const val WEB_CLIENT_ID = "647840220611-c6mfa6jmm09nog5ijstg4kshh40nm5rc.apps.googleusercontent.com"
+        const val WEB_CLIENT_ID = ""
         const val DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
         const val USER_INFO_SCOPE = "https://www.googleapis.com/auth/userinfo.profile"
     }
@@ -73,14 +75,16 @@ class GoogleAuthDataSource @Inject constructor(
 
                 if (!accessToken.isNullOrBlank()) {
                     val jsonProfile = JSONObject(getUserInfo(accessToken))
+                    val email = jsonProfile.getString("email")
                     _authState.value = AuthService.AuthState.Authenticated(
                         accessToken = accessToken,
-                        email = jsonProfile.getString("email"),
+                        email = email,
                         displayName = jsonProfile.getString("name"),
                         givenName = jsonProfile.getString("given_name"),
                         familyName = jsonProfile.getString("family_name"),
                         profilePictureUri = jsonProfile.getString("picture").toUri()
                     )
+                    settigsRepository.setAccount(email)
                 } else {
                     _authState.value = AuthService.AuthState.Error(IllegalStateException("No access token"))
                 }

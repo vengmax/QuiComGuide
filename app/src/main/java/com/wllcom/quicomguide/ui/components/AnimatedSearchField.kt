@@ -77,7 +77,7 @@ fun AnimatedSearchField(
     val searchPadding = 16.dp
     val innerColor = MaterialTheme.colorScheme.background
     var expanded by rememberSaveable { mutableStateOf(false) }
-    var selectedSearchMode by rememberSaveable { mutableStateOf<EnumSearchMode>(EnumSearchMode.FTS) }
+    var selectedSearchMode by rememberSaveable { mutableStateOf(EnumSearchMode.EMBEDDING) }
 
     val icon = if (expanded) {
         Icons.Default.AutoFixHigh

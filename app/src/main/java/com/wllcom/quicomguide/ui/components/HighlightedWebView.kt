@@ -107,7 +107,7 @@ fun buildHtml(
     }
 
     return processingHtml(
-        "<h2>${escapeHtml(materialTitle)}</h2>\n$sectionsHtml",
+        "<br/></br></br></br></br><h2>${escapeHtml(materialTitle)}</h2>\n$sectionsHtml",
         bgColor,
         fontSize,
         isDark
@@ -190,6 +190,7 @@ private fun processingHtml(
                 display: block;
                 margin: 8px 0;
             }
+            .formula-inline { display: inline; /* можно добавить vertical-align и отступы */ }
           </style>
         </head>
         <body>
@@ -316,6 +317,13 @@ private fun convertInlineTagsToHtml(text: String): String {
         """<span class="formula">\[${texContent}\]</span>"""
     }
 
+    val inlineTexRegex = """<inline-tex>(.*?)</inline-tex>""".toRegex(setOf(RegexOption.DOT_MATCHES_ALL))
+    result = inlineTexRegex.replace(result) { match ->
+        val texContent = match.groups[1]?.value?.trim() ?: ""
+        """<span class="formula-inline">\(${texContent}\)</span>"""
+    }
+
+
     return result
 }
 
@@ -324,4 +332,4 @@ private fun escapeHtml(s: String): String =
         .replace("<", "&lt;")
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
-        .replace("'", "&#39;")
+        .replace("'", "&apos;")

@@ -89,7 +89,7 @@ class MaterialDataSource @Inject constructor(
 
         // embed material title
         val materialTitleEmb = withContext(Dispatchers.Default) {
-            embeddingProvider.embed(title)
+            embeddingProvider.embed(title.lowercase())
         }
 
         // compute embeddings per element
@@ -101,22 +101,26 @@ class MaterialDataSource @Inject constructor(
                 val content = elem.second
 
                 // choose chunking method
+                val newContent = encodeCharsInTags(content)
+                val maxTokensChunk = (128 + newContent.second).coerceAtMost(512)
                 val chunks = if (embeddingProvider.publicTokenizer != null) {
-                    chunkTextUsingTokenizer(embeddingProvider.publicTokenizer!!, content, 512)
+                    chunkTextUsingTokenizer(
+                        embeddingProvider.publicTokenizer!!,
+                        newContent.first,
+                        maxTokensChunk,
+                        0
+                    )
                 } else {
-                    chunkTextApproxChar(content, chunkSizeChars = 512, overlapChars = 50)
+                    chunkTextApproxChar(content, chunkSizeChars = maxTokensChunk, overlapChars = 0)
                 }
 
                 // compute chunk embeddings
                 val chunkEmbeddings = mutableListOf<FloatArray>()
                 for (chunk in chunks) {
-                    val prepareChunk = chunk
-                        .replace(Regex("</?(code|inline-code|tex|table|br)[^>]*>"), " ")
-                        .replace(Regex("\\s+"), " ")
-                        .trim()
+                    val prepareChunk = simplifyXml(simplifyKaTeXInTexTags(chunk))
 
                     val emb = withContext(Dispatchers.Default) {
-                        embeddingProvider.embed(parsedSec.title + prepareChunk)
+                        embeddingProvider.embed(prepareChunk.lowercase())
                     }
                     chunkEmbeddings.add(emb)
                 }
@@ -140,7 +144,7 @@ class MaterialDataSource @Inject constructor(
                     SectionElementChunkEmbeddingEntity(
                         sectionElementId = elementId,
                         chunkIndex = idx,
-                        chunkText = chunks[idx],
+                        chunkText = decodeCharsInTags(chunks[idx]).first,
                         chunkEmbedding = floatArrayToBytes(ch)
                     )
                 }
@@ -207,7 +211,7 @@ class MaterialDataSource @Inject constructor(
 
                 // compute query embedding on Default dispatcher
                 val queryEmb = withContext(Dispatchers.Default) {
-                    embeddingProvider.embed(query)
+                    embeddingProvider.embed(query.lowercase())
                 }.also { l2Normalize(it) }
 
                 // getting chunk
@@ -221,7 +225,7 @@ class MaterialDataSource @Inject constructor(
                 val sortedChunks = scoredChunks.sortedByDescending { it.second }.take(200)
 
                 // short answer
-                conciseAnswer = buildConciseAnswerDynamicFromChunks(query, sortedChunks, recomendCharLimit = 512)
+                conciseAnswer = buildConciseAnswerDynamicFromChunks(dao, query, sortedChunks)
 
                 // better chunk for material
                 val materialToBest = mutableMapOf<Long, Pair<MaterialDao.SectionElementChunkWithContext, Float>>()
@@ -341,6 +345,127 @@ class MaterialDataSource @Inject constructor(
         return stemmedWords.joinToString(" ")
     }
 
+    private fun simplifyXml(input: String): String {
+        if (input.isEmpty()) return input
+
+        return input.replace(Regex("</?(code|inline-code|tex|inline-tex|table|br)[^>]*>"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    fun simplifyKaTeXInTexTags(input: String): String {
+        if (input.isEmpty()) return input
+
+        // Основные regex'ы
+        val fullPairRegex = Regex("(?s)<(?:tex|inline-tex)\\b([^>]*)>(.*?)</(?:tex|inline-tex)>",
+            setOf(RegexOption.IGNORE_CASE)) // DOT_MATCHES_ALL через (?s) в паттерне
+
+        // Одиночный открывающий тег и остаток до конца (без закрытия)
+        val openTagRegex = Regex("(?is)<(tex|inline-tex)\\b([^>]*)>(.*)\$", setOf(RegexOption.IGNORE_CASE))
+        // Одиночный закрывающий тег и всё до него (без открытия)
+        val closeTagRegex = Regex("(?is)^(.*?)</(tex|inline-tex)>", setOf(RegexOption.IGNORE_CASE))
+
+        // Вспомогательные regex'ы для очистки внутри блока
+        val beginEndRegex = Regex("""\\begin\{[^}]*\}|\s*\\end\{[^}]*\}""", RegexOption.IGNORE_CASE)
+        val mathDelimitersRegex = Regex("""\$\$?""")
+        val parenDelimsRegex = Regex("""\\\(|\\\)|\\\[|\\\]""")
+        val dropCommandsRegex = Regex(
+            """\\(?:ensuremath|providecommand|renewcommand|newcommand|includegraphics|include|input|mathchoice|html@mathml|htmlClass|htmlStyle|htmlId|@ifundefinedelse|@ifundefined|@ifnextchar|@ifstar|addtocounter|setcounter|addtolength|setlength|raisebox|framebox|makebox|textsuperscript|textsubscript|textnormal|texttt|textsf|textrm|textsc|textmd|textit|textbf|bibliography|noteref|pageref|nameref|labelsep|label|ref|eqref|cite|bibitem|def|gdef|mathsf|mathit|mathbf|mathrm|mathcal|mathbb|mathfrak|left|right|rule|vcenter|smallskip|medskip|bigskip|hline|hdashline|kern|hskip|mskip|hphantom|vphantom|phantom|quad|qquad|enspace|enskip|thinspace|medspace|thickspace|negthinspace|negmedspace|negthickspace|htmlData|TeX|LaTeX|KaTeX|newline|linebreak|pagebreak|nopagebreak|allowbreak|hspace|vspace|hfill|vfill|,|;|:|!|>|<|colorbox|fcolorbox|textcolor|emph|underline|overline|boxed|fbox|bfseries|itshape|scshape|sffamily|rmfamily|ttfamily|mdseries|upshape|slshape)(?:\{[^}]*\})?""",
+            RegexOption.IGNORE_CASE
+        )
+        val spacingCmdsRegex = Regex("""\\(?:,|;|:|!|>|<|quad|qquad|enspace|enskip|thinspace|medspace|thickspace)""", RegexOption.IGNORE_CASE)
+        val strayBackslashRegex = Regex("""\\(?=[^\p{L}])""")
+        val supersubRegex = Regex("""\^\{([^}]*)\}""")
+        val subRegex = Regex("""_\{([^}]*)\}""")
+        val bracesRegex = Regex("""[{}]""")
+
+        fun simplifyBlock(blockContent: String): String {
+            var s = blockContent
+            s = mathDelimitersRegex.replace(s, "")
+            s = parenDelimsRegex.replace(s) {
+                when (it.value) {
+                    """\(""" -> "("
+                    """\)""" -> ")"
+                    """\[""" -> "["
+                    """\]""" -> "]"
+                    else -> ""
+                }
+            }
+            s = beginEndRegex.replace(s, " ")
+            s = dropCommandsRegex.replace(s, " ")
+            s = spacingCmdsRegex.replace(s, " ")
+            s = supersubRegex.replace(s) { mr -> "^${mr.groupValues[1]}" }
+            s = subRegex.replace(s) { mr -> "_${mr.groupValues[1]}" }
+            s = bracesRegex.replace(s, "")
+            s = strayBackslashRegex.replace(s, "")
+            s = s.replace(Regex("\\s+"), " ").trim()
+            return s
+        }
+
+        // 1) Сначала заменяем все полностью закрытые пары (самый безопасный шаг)
+        var result = fullPairRegex.replace(input) { m ->
+            val inner = m.groups[2]?.value ?: ""
+            simplifyBlock(inner)
+        }
+
+        // 2) Обработка случаев: сначала проверим — есть ли закрывающий тег, который встречается раньше открывающего
+        // Мы будем итерировать, т.к. замены меняют строку и могут образовывать новые положения
+        while (true) {
+            val firstOpenIdx = Regex("(?i)<(?:tex|inline-tex)\\b").find(result)?.range?.first ?: -1
+            val firstCloseIdx = Regex("(?i)</(?:tex|inline-tex)>").find(result)?.range?.first ?: -1
+
+            if (firstOpenIdx == -1 && firstCloseIdx == -1) break
+
+            // Случай: закрывающий тег встречается раньше (или нет открывающего)
+            if (firstCloseIdx != -1 && (firstOpenIdx == -1 || firstCloseIdx < firstOpenIdx)) {
+                // берём всё от начала до закрывающего тега
+                val closeMatch = Regex("(?is)^(.*?)</(tex|inline-tex)>").find(result)
+                if (closeMatch != null) {
+                    val inner = closeMatch.groupValues[1]
+                    val cleaned = simplifyBlock(inner)
+                    // заменяем от начала до конца закрывающего тега на cleaned
+                    val replaceEnd = closeMatch.range.last + 1
+                    result = cleaned + result.substring(replaceEnd)
+                    continue
+                } else {
+                    break
+                }
+            }
+
+            // Случай: открывающий тег встречается раньше
+            if (firstOpenIdx != -1 && (firstCloseIdx == -1 || firstOpenIdx < firstCloseIdx)) {
+                // Найдём сам открывающий тег (чтобы получить где он заканчивается)
+                val openMatch = Regex("(?is)<(tex|inline-tex)\\b([^>]*)>").find(result, firstOpenIdx)
+                if (openMatch != null) {
+                    val openEnd = openMatch.range.last + 1
+                    // ищем закрывающий тег после openEnd
+                    val closeAfterOpen = Regex("(?i)</(?:tex|inline-tex)>").find(result, openEnd)
+                    if (closeAfterOpen != null) {
+                        // Если он найден — это пара, но такие пары уже должны были быть обработаны первым шагом.
+                        // Тем не менее — обработаем конкретный кусок между ними (надёжность).
+                        val inner = result.substring(openEnd, closeAfterOpen.range.first)
+                        val cleaned = simplifyBlock(inner)
+                        result = result.substring(0, openMatch.range.first) + cleaned + result.substring(closeAfterOpen.range.last + 1)
+                        continue
+                    } else {
+                        // Нет закрывающего — берём от открывающего до конца текущего фрагмента
+                        val inner = result.substring(openEnd)
+                        val cleaned = simplifyBlock(inner)
+                        // заменяем открывающий тег + остаток на cleaned
+                        result = result.substring(0, openMatch.range.first) + cleaned
+                        continue
+                    }
+                } else {
+                    break
+                }
+            }
+
+            break
+        }
+
+        return result
+    }
+
     /**
      * Chunking using tokenizer (recommended)
      * - tokenizer.encode(text) -> tokens
@@ -370,9 +495,119 @@ class MaterialDataSource @Inject constructor(
     }
 
     /**
+     * Заменяет внутри <code>, <inline-code>, <table>:
+     * '\n' -> '⇪'
+     * '\r' -> '➽'
+     * '\t' -> '▦'
+     * ' '  -> '➲'
+     * Возвращает Pair(результирующая строка, общее количество замен).
+     */
+    fun encodeCharsInTags(input: String): Pair<String, Int> {
+        val regex = Regex("(?s)<(code|inline-code|table)(\\s[^>]*)?>(.*?)</\\1>", RegexOption.IGNORE_CASE)
+        val sb = StringBuilder()
+        var lastIndex = 0
+        var totalReplacements = 0
+
+        for (m in regex.findAll(input)) {
+            val range = m.range
+            sb.append(input, lastIndex, range.first)
+
+            val tagName = m.groupValues[1]
+            val attrs = m.groupValues[2]
+            val content = m.groupValues[3]
+
+            // Считаем вхождения каждого символа внутри контента
+            val countNl = content.count { it == '\n' }
+            val countCr = content.count { it == '\r' }
+            val countTab = content.count { it == '\t' }
+            val countSpace = content.count { it == ' ' }
+
+            totalReplacements += countNl + countCr + countTab + countSpace
+
+            // Выполняем замены внутри содержимого (порядок не критичен для этих символов)
+            val newContent = buildString {
+                append(content
+                    .replace("\r", "➽")
+                    .replace("\n", "⇪")
+                    .replace("\t", "▦")
+                    .replace(" ", "➲"))
+            }
+
+            sb.append("<").append(tagName)
+            if (attrs.isNotEmpty()) sb.append(attrs)
+            sb.append(">")
+            sb.append(newContent)
+            sb.append("</").append(tagName).append(">")
+            lastIndex = range.last + 1
+        }
+
+        sb.append(input, lastIndex, input.length)
+        return sb.toString() to totalReplacements
+    }
+
+    /**
+     * Обратная функция: внутри тех же тегов заменяет токены обратно:
+     * '⇪' -> '\n'
+     * '➽' -> '\r'
+     * '▦' -> '\t'
+     * '➲' -> ' '
+     * Возвращает Pair(результирующая строка, общее количество обратных замен).
+     *
+     * Реализация восстановления простая: для содержимого используем последовательные replace,
+     * а количество замен считаем как (parts.size - 1) для каждого токена.
+     */
+    fun decodeCharsInTags(input: String): Pair<String, Int> {
+        val regex = Regex("(?s)<(code|inline-code|table)(\\s[^>]*)?>(.*?)</\\1>", RegexOption.IGNORE_CASE)
+        val sb = StringBuilder()
+        var lastIndex = 0
+        var totalReplacements = 0
+
+        for (m in regex.findAll(input)) {
+            val range = m.range
+            sb.append(input, lastIndex, range.first)
+
+            val tagName = m.groupValues[1]
+            val attrs = m.groupValues[2]
+            val content = m.groupValues[3]
+
+            // Считаем вхождения токенов (split даст количество вхождений = parts.size - 1)
+            fun countTokenOccurrences(haystack: String, token: String): Int {
+                if (token.isEmpty()) return 0
+                val parts = haystack.split(token)
+                return parts.size - 1
+            }
+
+            val countNl = countTokenOccurrences(content, "⇪")
+            val countCr = countTokenOccurrences(content, "➽")
+            val countTab = countTokenOccurrences(content, "▦")
+            val countSpace = countTokenOccurrences(content, "➲")
+
+            totalReplacements += countNl + countCr + countTab + countSpace
+
+            // Простая последовательная замена (как вы просили — такой уникальный набор токенов
+            // в обычном тексте встречаться не будет, поэтому порядок безопасен)
+            val newContent = content
+                .replace("⇪", "\n")
+                .replace("➽", "\r")
+                .replace("▦", "\t")
+                .replace("➲", " ")
+
+            sb.append("<").append(tagName)
+            if (attrs.isNotEmpty()) sb.append(attrs)
+            sb.append(">")
+            sb.append(newContent)
+            sb.append("</").append(tagName).append(">")
+            lastIndex = range.last + 1
+        }
+
+        sb.append(input, lastIndex, input.length)
+        return sb.toString() to totalReplacements
+    }
+
+    /**
      * Fallback char-based chunking (approximate). Uses chunkSizeChars + overlapChars.
      */
-    fun chunkTextApproxChar(text: String, chunkSizeChars: Int = 2000, overlapChars: Int = 400): List<String> {
+    fun chunkTextApproxChar(text: String, chunkSizeChars: Int = 512, overlapChars: Int = 50): List<String> {
         if (text.length <= chunkSizeChars) return listOf(text)
         val chunks = mutableListOf<String>()
         var i = 0
@@ -396,7 +631,7 @@ class MaterialDataSource @Inject constructor(
         sectionContent = sectionContent
             .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
             .replace(Regex("</?table[^>]*>"), "<таблица>")
-            .replace(Regex("</?tex[^>]*>"), "<форматированный текст>")
+            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
             .replace(Regex("\\s+"), " ")
             .trim()
 
@@ -429,7 +664,7 @@ class MaterialDataSource @Inject constructor(
         sectionContent = sectionContent
             .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
             .replace(Regex("</?table[^>]*>"), "<таблица>")
-            .replace(Regex("</?tex[^>]*>"), "<форматированный текст>")
+            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
             .replace(Regex("\\s+"), " ")
             .trim()
 
@@ -450,7 +685,7 @@ class MaterialDataSource @Inject constructor(
         sectionContent = sectionContent
             .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
             .replace(Regex("</?table[^>]*>"), "<таблица>")
-            .replace(Regex("</?tex[^>]*>"), "<форматированный текст>")
+            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
             .replace(Regex("\\s+"), " ")
             .trim()
 
@@ -484,160 +719,120 @@ class MaterialDataSource @Inject constructor(
     }
 
 
-//    private fun smartTrimSnippet(text: String, limit: Int = 180): String {
-//        val full = text.replace(Regex("\\s+"), " ").trim()
-//        if (full.length <= limit) return full
-//        val sentences = full.split(Regex("(?<=[.!?])\\s+"))
-//        val sb = StringBuilder()
-//        for (s in sentences) {
-//            if (sb.isNotEmpty() && sb.length + 1 + s.length > limit) break
-//            if (sb.isNotEmpty()) sb.append(" ")
-//            sb.append(s)
-//        }
-//        val out = if (sb.isNotEmpty()) sb.toString() else full.substring(0, limit).trimEnd()
-//        return if (out.length < full.length) out.trimEnd().trimEnd('.') + "..." else out
-//    }
-
-//    private fun smartTrimSnippet(text: String, limit: Int = 180): String {
-//        val full = text.replace(Regex("\\s+"), " ").trim()
-//        if (full.length <= limit) return full
-//
-//        val tagRegex = Regex("""<(code|inline-code|tex|table)(\b[^>]*)?>.*?</\1>|<br\s*/>""")
-//
-//        val sb = StringBuilder()
-//        var consumed = 0
-//        var lastIndex = 0
-//
-//        for (match in tagRegex.findAll(full)) {
-//            val tagStart = match.range.first
-//            val tagEnd = match.range.last + 1
-//
-//            if (tagStart > lastIndex) {
-//                val chunk = full.substring(lastIndex, tagStart)
-//                if (consumed + chunk.length >= limit) {
-//                    sb.append(chunk.take(limit - consumed).trimEnd()).append("...")
-//                    return sb.toString()
-//                }
-//                sb.append(chunk)
-//                consumed += chunk.length
-//            }
-//
-//            sb.append(full.substring(tagStart, tagEnd))
-//
-//            lastIndex = tagEnd
-//        }
-//
-//        if (lastIndex < full.length) {
-//            val tail = full.substring(lastIndex)
-//            if (consumed + tail.length > limit) {
-//                sb.append(tail.take(limit - consumed).trimEnd()).append("...")
-//            } else {
-//                sb.append(tail)
-//            }
-//        }
-//
-//        return sb.toString()
-//    }
-
-    private fun smartTrimSnippet(
-        text: String,
-        query: String,
-        limit: Int = 180
-    ): String {
-        val clean = text.replace(Regex("\\s+"), " ").trim()
-        if (clean.length <= limit) return clean
-
-        val sentences = clean.split(Regex("(?<=[.!?])\\s+"))
-        val target = sentences.firstOrNull { it.contains(query, ignoreCase = true) }
-            ?: run {
-                val take = StringBuilder()
-                for (s in sentences) {
-                    if (take.isNotEmpty() && take.length + 1 + s.length > limit) break
-                    if (take.isNotEmpty()) take.append(" ")
-                    take.append(s)
-                }
-                take.toString()
-            }
-
-        fun trimByWordsPreservingTags(input: String, limit: Int): String {
-            val tagRegex = Regex("""<(code|inline-code|tex|table)(\b[^>]*)?>|</(code|inline-code|tex|table)>|<br\s*/>""")
-            val sb = StringBuilder()
-            var consumed = 0
-            var lastIndex = 0
-
-            for (m in tagRegex.findAll(input)) {
-                val start = m.range.first
-                val end = m.range.last + 1
-
-                if (start > lastIndex) {
-                    val chunk = input.substring(lastIndex, start)
-                    val words = chunk.split(" ")
-                    for (w in words) {
-                        if (w.isBlank()) continue
-                        if (consumed + w.length + 1 > limit) {
-                            return sb.toString().trimEnd() + "..."
-                        }
-                        if (sb.isNotEmpty()) {
-                            sb.append(" ")
-                            consumed++
-                        }
-                        sb.append(w)
-                        consumed += w.length
-                    }
-                }
-
-                val tagText = input.substring(start, end)
-                if (!tagText.startsWith("<br")) {
-                    sb.append(tagText)
-                }
-
-                lastIndex = end
-            }
-
-            if (lastIndex < input.length) {
-                val remainder = input.substring(lastIndex)
-                val words = remainder.split(" ")
-                for (w in words) {
-                    if (w.isBlank()) continue
-                    if (consumed + w.length + 1 > limit) {
-                        return sb.toString().trimEnd() + "..."
-                    }
-                    if (sb.isNotEmpty()) {
-                        sb.append(" ")
-                        consumed++
-                    }
-                    sb.append(w)
-                    consumed += w.length
-                }
-            }
-
-            return sb.toString()
-        }
-
-        fun closeUnclosedTags(text: String): String {
-            val stack = ArrayDeque<String>()
-            val result = StringBuilder(text)
-            val openTag = Regex("""<(code|inline-code|tex|table)(\b[^>]*)?>""")
-            val closeTag = Regex("""</(code|inline-code|tex|table)>""")
-
-            openTag.findAll(text).forEach { stack.addLast(it.groupValues[1]) }
-            closeTag.findAll(text).forEach { stack.removeLastOrNull() }
-
-            while (stack.isNotEmpty()) {
-                val t = stack.removeLast()
-                result.append("</").append(t).append(">")
-            }
-            return result.toString()
-        }
-
-        val limited = trimByWordsPreservingTags(target, limit)
-        return closeUnclosedTags(limited)
+    private fun replaceTexWithPlaceholder(input: String): String {
+        val inlineTexRe = Regex("""<inline-tex\b[^>]*>.*?</inline-tex>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        val texRe = Regex("""<tex\b[^>]*>.*?</tex>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+        return input.replace(inlineTexRe, "<Большая формула>").replace(texRe, "<Большая формула>")
     }
 
-    private fun buildConciseAnswerDynamicFromChunks(
+    private fun collectTagEvents(input: String): List<Triple<Int, Boolean, String>> {
+        // returns list of (position, isOpen, tagName) ordered by position
+        val events = mutableListOf<Triple<Int, Boolean, String>>()
+        val openRe = Regex("""<(code|inline-code|table|inline-tex|tex)(\b[^>]*)?>""", setOf(RegexOption.IGNORE_CASE))
+        val closeRe = Regex("""</(code|inline-code|table|inline-tex|tex)>""", setOf(RegexOption.IGNORE_CASE))
+        openRe.findAll(input).forEach { events.add(Triple(it.range.first, true, it.groupValues[1].lowercase())) }
+        closeRe.findAll(input).forEach { events.add(Triple(it.range.first, false, it.groupValues[1].lowercase())) }
+        return events.sortedBy { it.first }
+    }
+
+    private fun getUnclosedOpenTags(text: String): List<String> {
+        val stack = ArrayDeque<String>()
+        for ((_, isOpen, tag) in collectTagEvents(text)) {
+            if (isOpen) {
+                stack.addLast(tag)
+            } else {
+                if (stack.isNotEmpty() && stack.last() == tag) {
+                    stack.removeLast()
+                } else {
+                    // a closing without matching open inside this text => ignore here
+                }
+            }
+        }
+        return stack.toList() // opened but not closed
+    }
+
+    private fun getUnopenedCloseTags(text: String): List<String> {
+        val stack = ArrayDeque<String>()
+        val unopened = mutableListOf<String>()
+        for ((_, isOpen, tag) in collectTagEvents(text)) {
+            if (isOpen) {
+                stack.addLast(tag)
+            } else {
+                if (stack.isNotEmpty() && stack.last() == tag) {
+                    stack.removeLast()
+                } else {
+                    // closing while no open in this text -> unopened
+                    unopened.add(tag)
+                }
+            }
+        }
+        return unopened
+    }
+
+    private fun assembleSnippetForChunk(
+        chunkWithCtx: MaterialDao.SectionElementChunkWithContext,
+        query: String,
+        dao: MaterialDao
+    ): String {
+        val chunkEntity = chunkWithCtx.chunk
+        val sectionElementId = chunkEntity.sectionElementId
+        val chunkIndex = chunkEntity.chunkIndex
+        var snippet = chunkEntity.chunkText
+
+        val unopenedClosers = getUnopenedCloseTags(snippet)
+        if (unopenedClosers.isNotEmpty()) {
+            val prev = dao.getChunkByElementIdAndIndex(sectionElementId, chunkIndex - 1)
+            var prefix = ""
+            for (t in unopenedClosers) {
+                val openTag = "<$t>"
+                val closeTag = "</$t>"
+                if (prev != null && prev.chunkText.contains(Regex("<$t(\\b|>)", RegexOption.IGNORE_CASE))) {
+                    prefix = prev.chunkText.substring(prev.chunkText.indexOf(openTag))
+                } else {
+                    if(t == "tex" || t == "inline-tex") {
+                        snippet = snippet.removeRange(0, snippet.indexOf(closeTag) + closeTag.length)
+                        prefix = "<Большая формула> $prefix"
+                    }
+                    else
+                        prefix = "$openTag...$prefix"
+                }
+
+            }
+            snippet = "$prefix$snippet"
+        }
+
+        val unclosedOpens = getUnclosedOpenTags(snippet)
+        if (unclosedOpens.isNotEmpty()) {
+            val next = dao.getChunkByElementIdAndIndex(sectionElementId, chunkIndex + 1)
+            var addition = ""
+            for (t in unclosedOpens) {
+                val openTag = "<$t>"
+                val closeTag = "</$t>"
+                if (next != null && next.chunkText.contains(closeTag, ignoreCase = true)) {
+                    val tagSnip = next.chunkText.take(next.chunkText.indexOf(closeTag)) + closeTag
+                    addition = "$tagSnip$addition"
+                    break
+                } else {
+                    if(t == "tex" || t == "inline-tex") {
+                        snippet = snippet.removeRange(snippet.indexOf(openTag), snippet.length)
+                        addition = " <Большая формула>$addition"
+                    }
+                    else
+                        addition = "...$closeTag$addition"
+                }
+
+            }
+            snippet = snippet + addition
+        }
+
+        return snippet.trim()
+    }
+
+    private suspend fun buildConciseAnswerDynamicFromChunks(
+        dao: MaterialDao,
         query: String,
         scoredChunks: List<Pair<MaterialDao.SectionElementChunkWithContext, Float>>,
-        recomendCharLimit: Int = CONCISE_CHAR_LIMIT
+        recomendTop: Int = 3,
     ): String? {
         if (scoredChunks.isEmpty()) return null
 
@@ -648,14 +843,34 @@ class MaterialDataSource @Inject constructor(
         val selectedEmbeddings = mutableListOf<FloatArray>()
         val sb = StringBuilder()
 
-        for ((chunk, score) in scoredChunks) {
+        for ((chunkWithCtx, score) in scoredChunks) {
             if (score < scoreThreshold) break
 
-            val candEmb = bytesToFloatArray(chunk.chunk.chunkEmbedding)
+            // embedding чанка (raw)
+            val candEmb = bytesToFloatArray(chunkWithCtx.chunk.chunkEmbedding)
 
+            // section element average embedding (если есть) и комбинирование
+            val sectionEmbBytes = dao.getSectionElementById(chunkWithCtx.elementId)?.embedding
+            val combined = if (sectionEmbBytes != null) {
+                val sec = bytesToFloatArray(sectionEmbBytes)
+                val minLen = minOf(candEmb.size, sec.size)
+                val comb = FloatArray(minLen)
+                val wChunk = 0.7f
+                val wSec = 0.3f
+                for (i in 0 until minLen)
+                    comb[i] = candEmb[i] * wChunk + sec[i] * wSec
+
+                l2Normalize(comb)
+                comb
+            } else {
+                l2Normalize(candEmb)
+                candEmb
+            }
+
+            // проверка схожести с уже выбранными
             var maxSim = 0.0f
             for (sel in selectedEmbeddings) {
-                val sim = cosineSimilarity(candEmb, sel)
+                val sim = cosineSimilarity(combined, sel)
                 if (sim > maxSim) maxSim = sim
                 if (maxSim >= MAX_SIM_WITH_SELECTED) break
             }
@@ -663,7 +878,8 @@ class MaterialDataSource @Inject constructor(
             val novelty = (1.0f - maxSim) * score
             if (maxSim >= MAX_SIM_WITH_SELECTED || novelty < MIN_NOVELTY) continue
 
-            val frag = smartTrimSnippet(chunk.chunk.chunkText, query, limit = 180)
+            // собрать фрагмент (учитываем соседние чанки через dao)
+            val frag = assembleSnippetForChunk(chunkWithCtx, query, dao)
             if (frag.isBlank()) continue
 
             val key = frag.trim().lowercase()
@@ -672,16 +888,161 @@ class MaterialDataSource @Inject constructor(
             if (sb.isNotEmpty()) sb.append("<br/><br/>")
             sb.append(frag)
             selectedSnippets.add(frag)
-            selectedEmbeddings.add(candEmb)
+            selectedEmbeddings.add(combined)
 
-            if (sb.length >= recomendCharLimit) {
-//                val truncated = sb.toString().substring(0, recomendCharLimit).trimEnd()
-//                return if (truncated.endsWith(".")) "$truncated..." else "$truncated..."
-                return sb.toString().trim()
+            if (selectedSnippets.size >= recomendTop) {
+                break
             }
         }
 
         val result = sb.toString().trim()
         return result.ifEmpty { null }
     }
+
+//    private fun smartTrimSnippet(
+//        text: String,
+//        query: String,
+//        limit: Int = 180
+//    ): String {
+//        val clean = text.replace(Regex("\\s+"), " ").trim()
+//        if (clean.length <= limit) return clean
+//
+//        val sentences = clean.split(Regex("(?<=[.!?])\\s+"))
+//        val target = sentences.firstOrNull { it.contains(query, ignoreCase = true) }
+//            ?: run {
+//                val take = StringBuilder()
+//                for (s in sentences) {
+//                    if (take.isNotEmpty() && take.length + 1 + s.length > limit) break
+//                    if (take.isNotEmpty()) take.append(" ")
+//                    take.append(s)
+//                }
+//                take.toString()
+//            }
+//
+//        fun trimByWordsPreservingTags(input: String, limit: Int): String {
+//            val tagRegex = Regex("""<(code|inline-code|tex|table)(\b[^>]*)?>|</(code|inline-code|tex|table)>|<br\s*/>""")
+//            val sb = StringBuilder()
+//            var consumed = 0
+//            var lastIndex = 0
+//
+//            for (m in tagRegex.findAll(input)) {
+//                val start = m.range.first
+//                val end = m.range.last + 1
+//
+//                if (start > lastIndex) {
+//                    val chunk = input.substring(lastIndex, start)
+//                    val words = chunk.split(" ")
+//                    for (w in words) {
+//                        if (w.isBlank()) continue
+//                        if (consumed + w.length + 1 > limit) {
+//                            return sb.toString().trimEnd() + "..."
+//                        }
+//                        if (sb.isNotEmpty()) {
+//                            sb.append(" ")
+//                            consumed++
+//                        }
+//                        sb.append(w)
+//                        consumed += w.length
+//                    }
+//                }
+//
+//                val tagText = input.substring(start, end)
+//                if (!tagText.startsWith("<br")) {
+//                    sb.append(tagText)
+//                }
+//
+//                lastIndex = end
+//            }
+//
+//            if (lastIndex < input.length) {
+//                val remainder = input.substring(lastIndex)
+//                val words = remainder.split(" ")
+//                for (w in words) {
+//                    if (w.isBlank()) continue
+//                    if (consumed + w.length + 1 > limit) {
+//                        return sb.toString().trimEnd() + "..."
+//                    }
+//                    if (sb.isNotEmpty()) {
+//                        sb.append(" ")
+//                        consumed++
+//                    }
+//                    sb.append(w)
+//                    consumed += w.length
+//                }
+//            }
+//
+//            return sb.toString()
+//        }
+//
+//        fun closeUnclosedTags(text: String): String {
+//            val stack = ArrayDeque<String>()
+//            val result = StringBuilder(text)
+//            val openTag = Regex("""<(code|inline-code|tex|table)(\b[^>]*)?>""")
+//            val closeTag = Regex("""</(code|inline-code|tex|table)>""")
+//
+//            openTag.findAll(text).forEach { stack.addLast(it.groupValues[1]) }
+//            closeTag.findAll(text).forEach { stack.removeLastOrNull() }
+//
+//            while (stack.isNotEmpty()) {
+//                val t = stack.removeLast()
+//                result.append("</").append(t).append(">")
+//            }
+//            return result.toString()
+//        }
+//
+//        val limited = trimByWordsPreservingTags(target, limit)
+//        return closeUnclosedTags(limited)
+//    }
+//
+//    private fun buildConciseAnswerDynamicFromChunks(
+//        query: String,
+//        scoredChunks: List<Pair<MaterialDao.SectionElementChunkWithContext, Float>>,
+//        recomendCharLimit: Int = CONCISE_CHAR_LIMIT
+//    ): String? {
+//        if (scoredChunks.isEmpty()) return null
+//
+//        val topScore = scoredChunks.firstOrNull()?.second ?: return null
+//        val scoreThreshold = topScore * MIN_SCORE_RATIO
+//
+//        val selectedSnippets = mutableListOf<String>()
+//        val selectedEmbeddings = mutableListOf<FloatArray>()
+//        val sb = StringBuilder()
+//
+//        for ((chunk, score) in scoredChunks) {
+//            if (score < scoreThreshold) break
+//
+//            val candEmb = bytesToFloatArray(chunk.chunk.chunkEmbedding)
+//
+//            var maxSim = 0.0f
+//            for (sel in selectedEmbeddings) {
+//                val sim = cosineSimilarity(candEmb, sel)
+//                if (sim > maxSim) maxSim = sim
+//                if (maxSim >= MAX_SIM_WITH_SELECTED) break
+//            }
+//
+//            val novelty = (1.0f - maxSim) * score
+//            if (maxSim >= MAX_SIM_WITH_SELECTED || novelty < MIN_NOVELTY) continue
+//
+//            val frag = smartTrimSnippet(chunk.chunk.chunkText, query, limit = 180)
+//            if (frag.isBlank()) continue
+//
+//            val key = frag.trim().lowercase()
+//            if (selectedSnippets.any { it.trim().lowercase() == key }) continue
+//
+//            if (sb.isNotEmpty()) sb.append("<br/><br/>")
+//            sb.append(frag)
+//            selectedSnippets.add(frag)
+//            selectedEmbeddings.add(candEmb)
+//
+//            if (sb.length >= recomendCharLimit) {
+////                val truncated = sb.toString().substring(0, recomendCharLimit).trimEnd()
+////                return if (truncated.endsWith(".")) "$truncated..." else "$truncated..."
+//                return sb.toString().trim()
+//            }
+//        }
+//
+//        val result = sb.toString().trim()
+//        return result.ifEmpty { null }
+//    }
+
 }

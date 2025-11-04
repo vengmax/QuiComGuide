@@ -1,25 +1,26 @@
 package com.wllcom.quicomguide.ui.screens
 
 import android.webkit.WebView
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavController
 import com.wllcom.quicomguide.data.local.AppDatabase
@@ -27,6 +28,7 @@ import com.wllcom.quicomguide.data.local.entities.MaterialEntity
 import com.wllcom.quicomguide.data.parser.ParsedMaterial
 import com.wllcom.quicomguide.data.parser.XmlMaterialParser
 import com.wllcom.quicomguide.ui.components.HighlightedWebView
+import com.wllcom.quicomguide.ui.components.TopBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -79,26 +81,12 @@ fun MaterialDetailScreen(
     val parsed = loaded.second
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = material?.title ?: "Материал") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { navController.navigate("editMaterial/${material?.id ?: 0}") }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Редактировать")
-                    }
-                }
-            )
-        }
+
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+//                .padding(padding)
         ) {
             when {
                 parsed == null -> Text("Загрузка или материал не найден")
@@ -111,6 +99,20 @@ fun MaterialDetailScreen(
                 )
             }
         }
+        TopBar(
+            title = "Материал",
+            back = true,
+            onBack = { navController.popBackStack() },
+            customButtons = true,
+            composeCustomButtons = { modifier ->
+                Box(contentAlignment = Alignment.Center,modifier = modifier
+                    .width(44.dp)
+                    .clickable { navController.navigate("editMaterial/${material?.id ?: 0}") })
+                {
+                    Icon(Icons.Default.Edit, contentDescription = "Редактировать")
+                }
+            },
+        )
     }
 }
 

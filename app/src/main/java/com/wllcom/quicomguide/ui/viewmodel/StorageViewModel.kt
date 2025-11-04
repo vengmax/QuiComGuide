@@ -3,6 +3,7 @@ package com.wllcom.quicomguide.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.wllcom.quicomguide.data.repository.StorageRepository
+import com.wllcom.quicomguide.data.repository.StorageRepository.StatusSync
 import com.wllcom.quicomguide.data.source.cloud.StorageService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,10 @@ class StorageViewModel @Inject constructor(
 
     private val _statusDeleteCourse = MutableStateFlow<Boolean?>(null)
     val statusDeleteCourse: StateFlow<Boolean?> = _statusDeleteCourse.asStateFlow()
+
+    private val _statusSync = MutableStateFlow<StatusSync?>(null)
+    val statusSync: StateFlow<StatusSync?> = _statusSync.asStateFlow()
+    val syncPercentage = storage.syncPercentage
 
     fun getUserInfo(accessToken:String){
         _statusUserInfo.value = null
@@ -90,7 +95,7 @@ class StorageViewModel @Inject constructor(
     fun createGroup(accessToken:String, uniqueGroupName: String, uniqueCourseName: String? = null){
         _statusCreateGroup.value = null
         viewModelScope.launch(Dispatchers.IO) {
-            _statusCreateGroup.value = storage.createGroup(accessToken, uniqueGroupName, uniqueCourseName)
+            _statusCreateGroup.value = storage.createGroup(accessToken, uniqueGroupName, uniqueCourseName) != null
         }
     }
     fun deleteGroup(accessToken:String, uniqueGroupName: String, uniqueCourseName: String? = null){
@@ -103,13 +108,20 @@ class StorageViewModel @Inject constructor(
     fun createCourse(accessToken:String, uniqueCourseName: String){
         _statusCreateCourse.value = null
         viewModelScope.launch(Dispatchers.IO) {
-            _statusCreateCourse.value = storage.createCourse(accessToken, uniqueCourseName)
+            _statusCreateCourse.value = storage.createCourse(accessToken, uniqueCourseName) != null
         }
     }
     fun deleteCourse(accessToken:String, uniqueCourseName: String){
         _statusDeleteCourse.value = null
         viewModelScope.launch(Dispatchers.IO) {
             _statusDeleteCourse.value = storage.deleteCourse(accessToken, uniqueCourseName)
+        }
+    }
+
+    fun sync(accessToken:String, mode: StorageRepository.SyncMode = StorageRepository.SyncMode.AUTO){
+        _statusSync.value = null
+        viewModelScope.launch(Dispatchers.IO) {
+            _statusSync.value = storage.sync(accessToken, mode)
         }
     }
 }

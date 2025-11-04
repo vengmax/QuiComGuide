@@ -1,7 +1,7 @@
 package com.wllcom.quicomguide.ui.screens
 
-import android.widget.Space
-import androidx.compose.foundation.background
+import android.content.res.Configuration
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,25 +22,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
-import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -59,7 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -69,23 +59,24 @@ import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.local.entities.CourseEntity
 import com.wllcom.quicomguide.data.local.entities.MaterialGroupEntity
 import com.wllcom.quicomguide.data.source.cloud.AuthService
-import com.wllcom.quicomguide.ui.components.BottomBar
 import com.wllcom.quicomguide.ui.components.FabMenu
 import com.wllcom.quicomguide.ui.components.MaterialCard
 import com.wllcom.quicomguide.ui.components.MaterialCardGroup
-import com.wllcom.quicomguide.ui.components.TopBarWithSearch
+import com.wllcom.quicomguide.ui.components.TopBar
 import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
+import com.wllcom.quicomguide.ui.viewmodel.SettingsViewModel
 import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
+    val configuration = LocalConfiguration.current
+
     val context = LocalContext.current
     val db = AppDatabase.getInstance(context)
     val dao = db.materialDao()
@@ -148,7 +139,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
         }
     }
 
-    if (baseMaterials.isEmpty() && groupsWithMaterials.isEmpty() && isEditMode) {
+    if (baseMaterials.isEmpty() && groupsWithMaterials.isEmpty() && coursesList.isEmpty() && isEditMode) {
         isEditMode = false
     }
 
@@ -162,6 +153,9 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
     var toDeleteCourse by remember { mutableStateOf<Long?>(null) }
 
     // online
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val isAutoSync by settingsViewModel.isAutoSync.collectAsState()
+
     val authViewMode: AuthViewModel = hiltViewModel()
     val storageViewMode: StorageViewModel = hiltViewModel()
 
@@ -240,213 +234,96 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
         insetsStatus.calculateTopPadding()
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Курсы",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                    IconButton(
-                        onClick = { isEditModeDrawer = !isEditModeDrawer },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                    ) {
-                        Icon(
-                            imageVector = if (!isEditModeDrawer) Icons.Default.Edit else Icons.Default.Close,
-                            contentDescription = if (!isEditModeDrawer) "Edit" else "Close edit",
-                            tint = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+    var allGroupNameList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var receivedAllGroupNameList by remember {mutableStateOf(false)}
+    var allCourseNameList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var receivedAllCourseNameList by remember {mutableStateOf(false)}
+    LaunchedEffect(receivedAllGroupNameList, receivedAllCourseNameList) {
+        allGroupNameList = groupDao.getAllGroupName().map { it.lowercase() }
+        receivedAllGroupNameList = true
+        allCourseNameList = courseDao.getAllCourseName().map { it.lowercase() }
+        receivedAllCourseNameList = true
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        snackbarHost = {
+            SnackbarHost(
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = 50.dp),
+                hostState = snackbarHostState,
+            )
+        }
+    ) { bottomBarPadding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    Spacer(modifier = Modifier.height(statusPadding + 48.dp))
                 }
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    headlineContent = { Text("Все курсы") },
-                    supportingContent = { if (selectedCourse == null) Text("Фильтр отключён") },
-                    modifier = Modifier.clickable {
-                        selectedCourse = null
-                        scope.launch { drawerState.close() }
+                items(groupsWithMaterials, key = { "group-${it.group.id}" }) { gwm ->
+                    val group = gwm.group
+                    val displayedGroupMaterials = remember(gwm.materials, baseIds) {
+                        if (selectedCourse == null) gwm.materials else gwm.materials.filter { it.id in baseIds }
                     }
-                )
-                HorizontalDivider(Modifier, DividerDefaults.Thickness, DividerDefaults.color)
-                LazyColumn(modifier = Modifier.fillMaxHeight()) {
-                    items(coursesList) { course ->
-                        Box(modifier = Modifier.fillMaxWidth()) {
-                            ListItem(
-                                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                                headlineContent = { Text(course.name) },
-                                supportingContent = { if (selectedCourse == course.id) Text("Выбран") },
-                                modifier = Modifier.clickable {
-                                    selectedCourse = course.id
-                                    scope.launch { drawerState.close() }
+
+                    MaterialCardGroup(
+                        groupName = group.name,
+                        listMaterials = displayedGroupMaterials.take(3),
+                        editMode = isEditMode,
+                        deletingGroup = deletingGroup,
+                        onClick = { navController.navigate("group/${group.id}") },
+                        onLongClick = { isEditMode = !isEditMode },
+                        onDeleteClick = {
+
+                            deletingGroup = true
+
+                            jobDeleteGroup?.cancel()
+                            jobDeleteGroup = scope.launch(start = CoroutineStart.LAZY) {
+                                withContext(Dispatchers.IO) {
+                                    dao.deleteMaterialsByGroupId(group.id)
+                                    groupDao.deleteGroupById(group.id)
                                 }
-                            )
-                            if (isEditModeDrawer) {
-                                IconButton(
-                                    onClick = {
-                                        toDeleteCourse = course.id
-                                    },
-                                    modifier = Modifier
-                                        .align(Alignment.CenterEnd)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Удалить",
-                                        tint = MaterialTheme.colorScheme.onBackground,
-                                        modifier = Modifier.size(23.dp)
+                                deletingGroup = false
+                                snackbarHostState.showSnackbar("Группа удалена", withDismissAction = true)
+                            }
+
+                            if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
+                                val groupName = group.name
+                                val courseId = selectedCourse
+                                val courseName = coursesList.find { it.id == courseId }?.name
+                                val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
+                                if (au.accessToken != null) {
+                                    storageViewMode.deleteGroup(
+                                        au.accessToken,
+                                        groupName,
+                                        courseName
                                     )
                                 }
+                            } else {
+                                jobDeleteGroup!!.start()
                             }
                         }
-                    }
-                }
-            }
-        }
-    ) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = { BottomBar(navController = navController) },
-            snackbarHost = {
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                )
-            }
-        ) { bottomBarPadding ->
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    item {
-                        Spacer(modifier = Modifier.height(statusPadding + 64.dp))
-                    }
-                    items(groupsWithMaterials, key = { "group-${it.group.id}" }) { gwm ->
-                        val group = gwm.group
-                        val displayedGroupMaterials = remember(gwm.materials, baseIds) {
-                            if (selectedCourse == null) gwm.materials else gwm.materials.filter { it.id in baseIds }
-                        }
-
-                        MaterialCardGroup(
-                            groupName = group.name,
-                            listMaterials = displayedGroupMaterials.take(3),
-                            editMode = isEditMode,
-                            deletingGroup = deletingGroup,
-                            onClick = { navController.navigate("group/${group.id}") },
-                            onLongClick = { isEditMode = !isEditMode },
-                            onDeleteClick = {
-
-                                deletingGroup = true
-
-                                jobDeleteGroup?.cancel()
-                                jobDeleteGroup = scope.launch(start = CoroutineStart.LAZY) {
-                                    withContext(Dispatchers.IO) {
-                                        dao.deleteMaterialsByGroupId(group.id)
-                                        groupDao.deleteGroupById(group.id)
-                                    }
-                                    deletingGroup = false
-                                    snackbarHostState.showSnackbar("Группа удалена", withDismissAction = true)
-                                }
-
-                                if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
-                                    val groupName = group.name
-                                    val courseId = selectedCourse
-                                    val courseName = coursesList.find { it.id == courseId }?.name
-                                    val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                                    if (au.accessToken != null) {
-                                        storageViewMode.deleteGroup(
-                                            au.accessToken,
-                                            groupName,
-                                            courseName
-                                        )
-                                    }
-                                } else {
-                                    jobDeleteGroup!!.start()
-                                }
-                            }
-                        ) { id, title, text ->
-                            MaterialCard(
-                                title = title,
-                                text = text,
-                                editMode = isEditMode,
-                                deletingMaterial = deletingMaterial,
-                                modifier = Modifier
-                                    .size(width = 260.dp, height = 120.dp)
-                                    .padding(end = 8.dp),
-                                onClick = { navController.navigate("material/${id}") },
-                                onLongClick = { isEditMode = !isEditMode },
-                                onDeleteClick = {
-
-                                    deletingMaterial = true
-
-                                    val matId = id
-                                    jobDeleteMaterial?.cancel()
-                                    jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
-                                        withContext(Dispatchers.IO) {
-                                            dao.deleteMaterialById(matId)
-                                        }
-                                        deletingMaterial = false
-                                        snackbarHostState.showSnackbar(
-                                            "Материал удалён",
-                                            withDismissAction = true
-                                        )
-                                    }
-
-                                    if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
-                                        val materialName = title
-                                        val groupName = group.name
-                                        val courseId = selectedCourse
-                                        val courseName = coursesList.find { it.id == courseId }?.name
-                                        val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
-                                        if (au.accessToken != null) {
-                                            storageViewMode.deleteMaterial(
-                                                au.accessToken,
-                                                materialName,
-                                                courseName,
-                                                groupName
-                                            )
-                                        }
-                                    } else {
-                                        jobDeleteMaterial!!.start()
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    item {
-                        Text(
-                            "Прочие материалы",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
-
-                    val ungrouped = filtered.filter { it.id !in groupedIds }
-                    items(ungrouped, key = { "mat-${it.id}" }) { mat ->
-                        val preview = previewsById[mat.id] ?: ""
+                    ) { id, title, text ->
                         MaterialCard(
-                            title = mat.title,
-                            text = preview,
+                            title = title,
+                            text = text,
                             editMode = isEditMode,
                             deletingMaterial = deletingMaterial,
                             modifier = Modifier
-                                .height(105.dp)
-                                .fillMaxWidth()
-                                .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
-                            onClick = { navController.navigate("material/${mat.id}") },
+                                .width(260.dp),
+                            onClick = { navController.navigate("material/${id}") },
                             onLongClick = { isEditMode = !isEditMode },
                             onDeleteClick = {
 
                                 deletingMaterial = true
 
-                                val matId = mat.id
+                                val matId = id
                                 jobDeleteMaterial?.cancel()
                                 jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
                                     withContext(Dispatchers.IO) {
@@ -459,8 +336,9 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                                     )
                                 }
 
-                                if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
-                                    val materialName = mat.title
+                                if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
+                                    val materialName = title
+                                    val groupName = group.name
                                     val courseId = selectedCourse
                                     val courseName = coursesList.find { it.id == courseId }?.name
                                     val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
@@ -469,7 +347,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                                             au.accessToken,
                                             materialName,
                                             courseName,
-                                            null
+                                            groupName
                                         )
                                     }
                                 } else {
@@ -478,57 +356,126 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                             }
                         )
                     }
-
-                    item { Spacer(modifier = Modifier.height(60.dp + navigationPadding)) }
                 }
-            }
-            TopBarWithSearch(
-                title = {
-                    if (!isEditMode) {
-                        if (selectedCourse != null) {
-                            val name = coursesList.find { it.id == selectedCourse }?.name
-                                ?: selectedCourse.toString()
-                            Text("Курс: $name")
-                        } else Text("Все курсы")
-                    } else Text("Редактирование")
-                },
-                navigationIcon = {
-                    if (!isEditMode) {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Открыть меню")
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { isEditMode = !isEditMode }) {
-                        Icon(
-                            imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
-                            contentDescription = if (!isEditMode) "Edit" else "Close edit"
-                        )
-                    }
-                },
-                query = query,
-                onQueryChange = { query = it },
-                onDebouncedQuery = { debounced -> query = debounced },
-            )
-            if (!isEditMode) {
-                FabMenu(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(bottomBarPadding)
-                        .padding(end = 16.dp)
-                ) { action ->
-                    when (action) {
-                        "material" -> navController.navigate("addMaterial")
-                        "group" -> {
-                            newName = ""
-                            showCreateGroupDialog = true
-                        }
 
-                        "course" -> {
-                            newName = ""
-                            showCreateCourseDialog = true
+                item {
+                    Text(
+                        "Прочие материалы",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+
+                val ungrouped = filtered.filter { it.id !in groupedIds }
+                items(ungrouped, key = { "mat-${it.id}" }) { mat ->
+                    val preview = previewsById[mat.id] ?: ""
+                    MaterialCard(
+                        title = mat.title,
+                        text = preview,
+                        editMode = isEditMode,
+                        deletingMaterial = deletingMaterial,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
+                        onClick = { navController.navigate("material/${mat.id}") },
+                        onLongClick = { isEditMode = !isEditMode },
+                        onDeleteClick = {
+
+                            deletingMaterial = true
+
+                            val matId = mat.id
+                            jobDeleteMaterial?.cancel()
+                            jobDeleteMaterial = scope.launch(start = CoroutineStart.LAZY) {
+                                withContext(Dispatchers.IO) {
+                                    dao.deleteMaterialById(matId)
+                                }
+                                deletingMaterial = false
+                                snackbarHostState.showSnackbar(
+                                    "Материал удалён",
+                                    withDismissAction = true
+                                )
+                            }
+
+                            if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
+                                val materialName = mat.title
+                                val courseId = selectedCourse
+                                val courseName = coursesList.find { it.id == courseId }?.name
+                                val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
+                                if (au.accessToken != null) {
+                                    storageViewMode.deleteMaterial(
+                                        au.accessToken,
+                                        materialName,
+                                        courseName,
+                                        null
+                                    )
+                                }
+                            } else {
+                                jobDeleteMaterial!!.start()
+                            }
                         }
+                    )
+                }
+
+                item { Spacer(modifier = Modifier.height(60.dp + navigationPadding)) }
+            }
+        }
+
+        TopBar(
+            title =
+                if (!isEditMode) {
+                    if (selectedCourse != null) {
+                        val name = coursesList.find { it.id == selectedCourse }?.name
+                            ?: selectedCourse.toString()
+                        "Курс: $name"
+                    } else "Все курсы"
+                } else "Редактирование",
+            dropDown = true,
+            generalDropDownItem = "Все курсы",
+            onGeneralDropDownItem = { selectedCourse = null },
+            dropDownList = coursesList.map { it.name },
+            onDropDownList = { index -> selectedCourse = coursesList[index].id },
+            deleteModeDropDownList = isEditMode,
+            onDeleteDropDownList = { index -> toDeleteCourse = coursesList[index].id },
+            search = true,
+            query = query,
+            onQueryChange = { query = it },
+            onDebouncedQuery = { debounced -> query = debounced },
+            customButtons = true,
+            composeCustomButtons = { modifier ->
+                Box(contentAlignment = Alignment.Center,modifier = modifier
+                    .width(44.dp)
+                    .clickable { isEditMode = !isEditMode }) {
+                    Icon(
+                        imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
+                        contentDescription = if (!isEditMode) "Edit" else "Close edit"
+                    )
+                }
+            },
+        )
+
+        if (!isEditMode) {
+            FabMenu(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottomBarPadding)
+                    .let {
+                        if (configuration.orientation == Configuration.ORIENTATION_PORTRAIT)
+                            it.padding(bottom = 66.dp)
+                        else
+                            it.padding(bottom = 14.dp)
+                    }
+                    .padding(end = 16.dp)
+            ) { action ->
+                when (action) {
+                    "material" -> navController.navigate("addMaterial")
+                    "group" -> {
+                        newName = ""
+                        showCreateGroupDialog = true
+                    }
+
+                    "course" -> {
+                        newName = ""
+                        showCreateCourseDialog = true
                     }
                 }
             }
@@ -562,7 +509,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         snackbarHostState.showSnackbar("Курс удалён", withDismissAction = true)
                     }
 
-                    if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                    if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
                         val nameCourse = coursesList.find { it.id == toDeleteCourse }?.name!!
                         val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
                         if (au.accessToken != null)
@@ -605,6 +552,30 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                     val name = newName.trim()
                     val courseId = selectedCourse
                     if (name.isNotEmpty()) {
+
+                        if(name.length > 128){
+                            Toast.makeText(context,
+                                "Имя группы не может быть больше 128 символов!",
+                                Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+
+                        if(!receivedAllGroupNameList){
+                            Toast.makeText(context,
+                                "Не удалось выполнить проверку имени группы, попробуйте повторить позже",
+                                Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        else {
+                            if (name.lowercase() in allGroupNameList){
+                                Toast.makeText(context,
+                                    "Такой название уже существует. Введите уникальное название",
+                                    Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            receivedAllGroupNameList = false
+                        }
+
                         creatingNewGroup = true
 
                         jobCreateGroup?.cancel()
@@ -620,7 +591,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         }
 
                         // sync with storage
-                        if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                        if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
                             val courseName = coursesList.find { it.id == courseId }?.name
                             val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
                             if (au.accessToken != null) {
@@ -655,7 +626,17 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                 OutlinedTextField(
                     enabled = !creatingNewGroup,
                     value = newName,
-                    onValueChange = { newName = it },
+                    onValueChange = {
+                        if (it.length <= 128)
+                            newName = it
+                        else {
+                            Toast.makeText(
+                                context,
+                                "Имя группы не может быть больше 128 символов!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
                     label = { Text("Имя группы") })
             }
         )
@@ -673,6 +654,30 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                 TextButton(onClick = {
                     val name = newName.trim()
                     if (name.isNotEmpty()) {
+
+                        if(name.length > 128){
+                            Toast.makeText(context,
+                                "Имя курса не может быть больше 128 символов!",
+                                Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+
+                        if(!receivedAllCourseNameList){
+                            Toast.makeText(context,
+                                "Не удалось выполнить проверку имени курса, попробуйте повторить позже",
+                                Toast.LENGTH_SHORT).show()
+                            return@TextButton
+                        }
+                        else {
+                            if (name.lowercase() in allCourseNameList){
+                                Toast.makeText(context,
+                                    "Такой название уже существует. Введите уникальное название",
+                                    Toast.LENGTH_SHORT).show()
+                                return@TextButton
+                            }
+                            receivedAllCourseNameList = false
+                        }
+
                         creatingNewCourse = true
 
                         jobCreateCourse?.cancel()
@@ -683,7 +688,7 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                         }
 
                         // online mode
-                        if (authViewMode.authState.value is AuthService.AuthState.Authenticated) {
+                        if (authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync) {
                             val au = authViewMode.authState.value as AuthService.AuthState.Authenticated
                             if (au.accessToken != null)
                                 storageViewMode.createCourse(au.accessToken, name)
@@ -713,7 +718,17 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                 OutlinedTextField(
                     enabled = !creatingNewCourse,
                     value = newName,
-                    onValueChange = { newName = it },
+                    onValueChange = {
+                        if (it.length <= 128)
+                            newName = it
+                        else {
+                            Toast.makeText(
+                                context,
+                                "Имя курса не может быть больше 128 символов!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
                     label = { Text("Имя курса") })
             }
         )

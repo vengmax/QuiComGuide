@@ -1,9 +1,6 @@
 package com.wllcom.quicomguide.ui.components
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.wllcom.quicomguide.ui.styles.topBarStyle
 
 @Preview
 @Composable
@@ -77,6 +75,10 @@ fun FabMenu(
         }
     }
 
+    val topBarStyle = topBarStyle(47.dp, 0.dp)
+    val backgroundColor = topBarStyle.brush
+    val styleText = topBarStyle.text
+
     Box(modifier = modifier, contentAlignment = Alignment.BottomEnd) {
 
         Column(
@@ -90,34 +92,36 @@ fun FabMenu(
             if (expanded) {
                 ExtendedFloatingActionButton(
                     containerColor = Color.Transparent,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
                     onClick = { onAction("material"); expanded = false },
-                    text = { Text("Материал") },
+                    text = { Text("Материал", style = styleText) },
                     icon = {
                         Icon(
                             Icons.AutoMirrored.Filled.Article,
-                            contentDescription = "Материал"
+                            contentDescription = "Материал",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     modifier = Modifier
                         .height(45.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .background(backgroundColor, RoundedCornerShape(28.dp))
                         .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
                 )
                 ExtendedFloatingActionButton(
                     containerColor = Color.Transparent,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
                     onClick = { onAction("group"); expanded = false },
-                    text = { Text("Группа") },
+                    text = { Text("Группа", style = styleText) },
                     icon = {
                         Icon(
                             Icons.Default.CollectionsBookmark,
-                            contentDescription = "Группа"
+                            contentDescription = "Группа",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     modifier = Modifier
                         .height(45.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .background(backgroundColor, RoundedCornerShape(28.dp))
                         .border(
                             1.dp,
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -126,15 +130,21 @@ fun FabMenu(
                 )
                 ExtendedFloatingActionButton(
                     containerColor = Color.Transparent,
-                    elevation = FloatingActionButtonDefaults.elevation(0.dp),
+                    elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
                     onClick = {
                         onAction("course"); expanded = false
                     },
-                    text = { Text("Курс") },
-                    icon = { Icon(Icons.Default.Folder, contentDescription = "Курс") },
+                    text = { Text("Курс", style = styleText) },
+                    icon = {
+                        Icon(
+                            Icons.Default.Folder,
+                            contentDescription = "Курс",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
                     modifier = Modifier
                         .height(45.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                        .background(backgroundColor, RoundedCornerShape(28.dp))
                         .border(
                             1.dp,
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -146,11 +156,11 @@ fun FabMenu(
 
         FloatingActionButton(
             containerColor = Color.Transparent,
-            elevation = FloatingActionButtonDefaults.elevation(0.dp),
+            elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
             onClick = { expanded = !expanded },
             modifier = Modifier
                 .size(45.dp)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f), RoundedCornerShape(28.dp))
+                .background(backgroundColor, RoundedCornerShape(28.dp))
                 .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f), RoundedCornerShape(28.dp))
         ) {
             Text(mainFabText)

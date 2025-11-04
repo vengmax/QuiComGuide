@@ -1,13 +1,13 @@
 package com.wllcom.quicomguide.ui.screens
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,8 +23,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -37,44 +35,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.wllcom.quicomguide.R
 import com.wllcom.quicomguide.data.source.cloud.AuthService
 import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
 import kotlinx.coroutines.delay
-
-//@Preview(showBackground = true)
-//@Composable
-//fun SignInScreenPreview() {
-//    SignInApp {}
-//}
-//
-//@Composable
-//fun SignInApp(onEvent: (SignInEvent) -> Unit) {
-////    MaterialTheme {
-////        Surface(
-////            modifier = Modifier.fillMaxSize(),
-////            color = MaterialTheme.colorScheme.background
-////        ) {
-//            SignInScreen(
-//                onGoogleClick = { onEvent(SignInEvent.Google) },
-//                onContinueWithoutAccount = { onEvent(SignInEvent.ContinueWithoutAccount) },
-//                onLearnMore = { onEvent(SignInEvent.LearnMore) }
-//            )
-////        }
-////    }
-//}
 
 sealed class SignInEvent {
     object Google : SignInEvent()
@@ -88,8 +65,15 @@ fun SignInScreen(
 ) {
     val viewModelAuth: AuthViewModel = hiltViewModel()
     val authState by viewModelAuth.authState.collectAsState()
-    if(authState is AuthService.AuthState.Authenticated){
+    var isBacked by rememberSaveable { mutableStateOf(false) }
+    if(authState is AuthService.AuthState.Authenticated && !isBacked){
+        isBacked = true
         navController.popBackStack()
+    }
+    else if(authState is AuthService.AuthState.Error){
+        Toast.makeText(LocalContext.current,
+            "Ошибка! Проверьте подключение к интернету.",
+            Toast.LENGTH_SHORT).show()
     }
 
     val pendingIntent by viewModelAuth.pendingIntentEvent.collectAsState()
@@ -115,7 +99,8 @@ fun SignInScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(backGroundColor
+            .background(
+                backGroundColor
             )
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -175,7 +160,10 @@ fun SignInScreen(
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .background(color = MaterialTheme.colorScheme.onSurfaceVariant, shape = RoundedCornerShape(10.dp)),
+                            .background(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                shape = RoundedCornerShape(10.dp)
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
 //                        Text("★", fontSize = 28.sp)
@@ -216,7 +204,9 @@ fun SignInScreen(
 
             // Continue without account
             OutlinedButton(
-                onClick = { navController.navigate("home") },
+                onClick = {
+                    navController.popBackStack()
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),

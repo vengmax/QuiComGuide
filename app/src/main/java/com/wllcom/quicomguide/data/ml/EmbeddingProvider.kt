@@ -85,7 +85,7 @@ class EmbeddingProvider @Inject constructor(@param:ApplicationContext private va
         val tk = tokenizer
         val model = interpreter
 
-        val inputIds = tk.encode(if(text.length > 512) text.take(512) else text)
+        val inputIds = tk.encode(text)
         val realLen = inputIds.size
         val padId = tk.tokenToId["<pad>"] ?: 1
 

@@ -110,13 +110,13 @@ fun MaterialCardGroup(
                     }
                     .background(Color.DarkGray.copy(alpha = 0.3f))
                     .padding(8.dp)
-
+                    .padding(end = 16.dp)
             )
             if (editMode) {
                 IconButton(
                     onClick = { enabledDeleteMode = true },
                     modifier = Modifier
-                        .align(Alignment.CenterEnd)
+                        .align(Alignment.TopEnd)
                         .padding(end = 2.dp)
                         .size(30.dp)
                 ) {

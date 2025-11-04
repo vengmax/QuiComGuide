@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,7 +40,6 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.wllcom.quicomguide.data.source.EnumSearchMode
-import com.wllcom.quicomguide.ui.components.BottomBar
 import com.wllcom.quicomguide.ui.components.HighlightedWebView
 import kotlinx.coroutines.launch
 
@@ -54,7 +54,7 @@ fun HomeScreen(
     var queryState by rememberSaveable { mutableStateOf("") }
     val isAiSearchReady by viewModel.isAiSearchReady.collectAsState(initial = false)
     val resultsState by viewModel.searchResults.collectAsState()
-    var currentSearchMode by rememberSaveable { mutableStateOf(EnumSearchMode.FTS) }
+    var currentSearchMode by rememberSaveable { mutableStateOf(EnumSearchMode.EMBEDDING) }
 
     Scaffold(
         modifier = Modifier
@@ -69,7 +69,7 @@ fun HomeScreen(
                 currentSearchMode = searchMode
             }
         },
-        bottomBar = { BottomBar(navController = navController) }
+//        bottomBar = { BottomBar(navController = navController) }
     ) { padding ->
 
         // loading widget
@@ -89,13 +89,15 @@ fun HomeScreen(
                     .distinctUntilChanged()
                     .debounce(700L)
                     .collectLatest { q ->
-                        viewModel.search(q, currentSearchMode)
+                        if(q.isNotEmpty())
+                            viewModel.search(q, currentSearchMode)
                     }
             }
             launch {
                 snapshotFlow { currentSearchMode }
                     .collectLatest {
-                        viewModel.search(queryState, currentSearchMode)
+                        if(queryState.isNotEmpty())
+                            viewModel.search(queryState, currentSearchMode)
                     }
             }
         }
@@ -152,6 +154,9 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
+            item {
+                Spacer(Modifier.navigationBarsPadding().height(60.dp))
             }
         }
     }

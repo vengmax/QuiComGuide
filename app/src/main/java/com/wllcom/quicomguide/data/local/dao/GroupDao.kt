@@ -11,6 +11,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface GroupDao {
+
+    @Query("SELECT name FROM material_groups")
+    suspend fun getAllGroupName(): List<String>
+
     @Query("SELECT * FROM material_groups ORDER BY name")
     fun getAllGroupsFlow(): Flow<List<MaterialGroupEntity>>
 
@@ -22,6 +26,9 @@ interface GroupDao {
 
     @Query("SELECT * FROM material_groups WHERE id = :id LIMIT 1")
     suspend fun getGroupById(id: Long): MaterialGroupEntity?
+
+    @Query("SELECT * FROM material_groups WHERE name = :name LIMIT 1")
+    suspend fun getGroupByName(name: String): MaterialGroupEntity?
 
     @Transaction
     @Query("SELECT * FROM material_groups")

@@ -1,5 +1,7 @@
 package com.wllcom.quicomguide.ui.screens
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -10,19 +12,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -41,8 +42,9 @@ import androidx.navigation.NavController
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.source.cloud.AuthService
 import com.wllcom.quicomguide.ui.components.MaterialCard
-import com.wllcom.quicomguide.ui.components.TopBarWithSearch
+import com.wllcom.quicomguide.ui.components.TopBar
 import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
+import com.wllcom.quicomguide.ui.viewmodel.SettingsViewModel
 import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +96,9 @@ fun GroupScreen(
     }
 
     // online
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
+    val isAutoSync by settingsViewModel.isAutoSync.collectAsState()
+
     val authViewMode: AuthViewModel = hiltViewModel()
     val storageViewMode: StorageViewModel = hiltViewModel()
 
@@ -136,7 +141,7 @@ fun GroupScreen(
         ) {
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 item {
-                    Spacer(modifier = Modifier.height(64.dp))
+                    Spacer(modifier = Modifier.height(48.dp))
                 }
                 items(filtered) { mat ->
                     val preview = previewsById[mat.id] ?: ""
@@ -146,7 +151,6 @@ fun GroupScreen(
                         editMode = isEditMode,
                         deletingMaterial = deletingMaterial,
                         modifier = Modifier
-                            .height(105.dp)
                             .fillMaxWidth()
                             .padding(bottom = 10.dp),
                         onClick = { navController.navigate("material/${mat.id}") },
@@ -167,7 +171,7 @@ fun GroupScreen(
                                 )
                             }
 
-                            if(authViewMode.authState.value is AuthService.AuthState.Authenticated){
+                            if(authViewMode.authState.value is AuthService.AuthState.Authenticated && isAutoSync){
                                 val materialName = mat.title
                                 val nameGroup = groupName
                                 val nameCourse = courseName
@@ -190,24 +194,23 @@ fun GroupScreen(
                 item { Spacer(modifier = Modifier.height(60.dp + navigationPadding)) }
             }
         }
-        TopBarWithSearch(
-            title = { if (!isEditMode) Text(text = "Группа: $groupId") else Text("Редактирование") },
-            navigationIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
-                }
-            },
-            actions = {
-                IconButton(onClick = { isEditMode = !isEditMode }) {
+        TopBar(
+            title =  if (!isEditMode) "Группа" else "Редактирование" ,
+            back = true,
+            onBack = {navController.popBackStack()},
+            search = true,
+            query = query,
+            onQueryChange = { query = it },
+            onDebouncedQuery = { debounced -> query = debounced },
+            customButtons = true,
+            composeCustomButtons = { modifier ->
+                Box(contentAlignment = Alignment.Center,modifier = modifier.width(44.dp).clickable { isEditMode = !isEditMode }) {
                     Icon(
                         imageVector = if (!isEditMode) Icons.Default.Edit else Icons.Default.Close,
                         contentDescription = if (!isEditMode) "Edit" else "Close edit"
                     )
                 }
             },
-            query = query,
-            onQueryChange = { query = it },
-            onDebouncedQuery = { debounced -> query = debounced },
         )
     }
 }

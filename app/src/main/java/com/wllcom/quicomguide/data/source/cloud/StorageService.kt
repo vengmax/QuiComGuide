@@ -27,9 +27,9 @@ interface StorageService {
         uniqueGroupName: String?
     ): Boolean
 
-    suspend fun createGroup(accessToken:String, uniqueGroupName: String, uniqueCourseName: String?): Boolean
+    suspend fun createGroup(accessToken:String, uniqueGroupName: String, uniqueCourseName: String?): String?
     suspend fun deleteGroup(accessToken:String, uniqueGroupName: String, uniqueCourseName: String?): Boolean
 
-    suspend fun createCourse(accessToken:String, uniqueCourseName: String): Boolean
+    suspend fun createCourse(accessToken:String, uniqueCourseName: String): String?
     suspend fun deleteCourse(accessToken:String, uniqueCourseName: String): Boolean
 }

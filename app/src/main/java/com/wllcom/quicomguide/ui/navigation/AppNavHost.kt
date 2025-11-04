@@ -139,7 +139,11 @@ fun AppNavHost(
 
     LaunchedEffect(authState) {
         if (authState != null && authState !is AuthService.AuthState.Authenticated) {
-            navController.navigate("signIn")
+            navController.navigate("signIn"){
+                popUpTo("signIn") { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 }

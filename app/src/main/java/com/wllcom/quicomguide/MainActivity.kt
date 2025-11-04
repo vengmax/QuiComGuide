@@ -9,32 +9,48 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.material3.Scaffold
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
-import com.wllcom.quicomguide.data.source.cloud.AuthService
 import com.wllcom.quicomguide.ui.navigation.AppNavHost
 import com.wllcom.quicomguide.ui.theme.QuiComGuideTheme
 import com.wllcom.quicomguide.ui.viewmodel.AuthViewModel
 import com.wllcom.quicomguide.ui.viewmodel.MaterialsViewModel
-import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.wllcom.quicomguide.ui.components.BottomBar
-import com.wllcom.quicomguide.ui.screens.SignInScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
+    private lateinit var navController: NavHostController
+    private val viewModel: MaterialsViewModel by viewModels()
+    private val viewModelAuth: AuthViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // проверка интернета перед UI
+        val connectivityManager =
+            getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivityManager.activeNetwork
+        val activeNetwork = connectivityManager.getNetworkCapabilities(network)
+        val hasInternet = activeNetwork?.run {
+            hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        } ?: false
+
+        if (hasInternet) {
+            viewModelAuth.signIn(silent = true)
+        }
+
         setContent {
             QuiComGuideTheme {
-                val navController = rememberNavController()
+//                val navController = rememberNavController()
 
-                val viewModel: MaterialsViewModel by viewModels()
+//                val viewModel: MaterialsViewModel by viewModels()
 //                val isReady by viewModel.isAiSearchReady.collectAsState()
 //                LaunchedEffect(isReady) {
 //                    if(isReady)
@@ -42,29 +58,35 @@ class MainActivity : ComponentActivity() {
 //                }
 
                 // auto signIn
-                val viewModelAuth: AuthViewModel = hiltViewModel()
-                val connectivityManager =
-                    this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-                val network = connectivityManager.activeNetwork
-                val activeNetwork = connectivityManager.getNetworkCapabilities(network)
-
-                val hasInternet = when {
-                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false -> true
-                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ?: false -> true
-                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ?: false -> true
-                    else -> false
-                }
-
-                if (hasInternet) {
-                    viewModelAuth.signIn(silent = true)
-                }
-//                val navBackStackEntry by navController.currentBackStackEntryAsState()
-//                val currentRoute = navBackStackEntry?.destination?.route
+//                val viewModelAuth: AuthViewModel = hiltViewModel()
+//                val connectivityManager =
+//                    this.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 //
-//                // показываем bottomBar только для корневых вкладок
-//                val showBottomBar = currentRoute in listOf("home", "tests", "library", "profile")
-                Scaffold { systemPadding ->
+//                val network = connectivityManager.activeNetwork
+//                val activeNetwork = connectivityManager.getNetworkCapabilities(network)
+//
+//                val hasInternet = when {
+//                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ?: false -> true
+//                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ?: false -> true
+//                    activeNetwork?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) ?: false -> true
+//                    else -> false
+//                }
+
+//                if (hasInternet) {
+//                    viewModelAuth.signIn(silent = true)
+//                }
+
+                // сохраняем controller между конфигурациями
+                if (!::navController.isInitialized) {
+                    navController = rememberNavController()
+                }
+
+                val navBackStackEntry by navController.currentBackStackEntryAsState()
+                val currentRoute = navBackStackEntry?.destination?.route
+
+                // показываем bottomBar только для корневых вкладок
+                val showBottomBar = currentRoute in listOf("home", "tests", "library", "profile")
+                Scaffold (bottomBar = {if(showBottomBar) BottomBar(navController)}) { systemPadding ->
                     AppNavHost(
                         navController = navController,
                         viewModel = viewModel,

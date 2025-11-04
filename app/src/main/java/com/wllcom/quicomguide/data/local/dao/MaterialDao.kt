@@ -65,6 +65,9 @@ interface MaterialDao {
     @Update
     suspend fun updateMaterial(element: MaterialEntity)
 
+    @Query("UPDATE materials SET updatedAt = :updatedAt WHERE id = :id")
+    suspend fun updateMaterialUpdatedAt(id: Long, updatedAt: Long)
+
     @Update
     suspend fun updateSection(section: SectionEntity)
 
@@ -76,9 +79,14 @@ interface MaterialDao {
 
 
 
+    @Query("SELECT title FROM materials")
+    suspend fun getAllMaterialName(): List<String>
 
     @Query("SELECT * FROM materials WHERE id = :id")
     suspend fun getMaterialById(id: Long): MaterialEntity?
+
+    @Query("SELECT * FROM materials WHERE title = :title")
+    suspend fun getMaterialByTitle(title: String): MaterialEntity?
 
     @Query("SELECT * FROM sections WHERE id = :id")
     suspend fun getSectionById(id: Long): SectionEntity?
@@ -152,6 +160,16 @@ interface MaterialDao {
 """)
     suspend fun getAllChunksWithContext(): List<SectionElementChunkWithContext>
 
+    @Query("""
+      SELECT * FROM section_element_chunk_embeddings
+      WHERE sectionElementId = :sectionElementId AND chunkIndex = :chunkIndex
+      LIMIT 1
+    """)
+    fun getChunkByElementIdAndIndex(
+        sectionElementId: Long,
+        chunkIndex: Int
+    ): SectionElementChunkEmbeddingEntity?
+
 
     @Transaction
     @Query("DELETE FROM materials WHERE id = :id")
@@ -165,23 +183,54 @@ interface MaterialDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMaterialGroupCrossRefs(refs: List<MaterialGroupCrossRef>)
 
+    @Query("""
+      UPDATE material_group_crossref
+      SET groupId = :newGroupId
+      WHERE materialId = :materialId AND groupId = :oldGroupId
+    """)
+    suspend fun updateGroupForMaterial(materialId: Long, oldGroupId: Long, newGroupId: Long)
+
     @Query("DELETE FROM material_group_crossref WHERE materialId = :materialId")
     suspend fun deleteMaterialGroupCrossRefsByMaterial(materialId: Long)
+
+    @Query("DELETE FROM material_group_crossref WHERE materialId = :materialId AND groupId = :oldGroupId")
+    suspend fun deleteMaterialGroupCrossRefByMaterial(materialId: Long, oldGroupId: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMaterialCourseCrossRefs(refs: List<MaterialCourseCrossRef>)
 
+    @Query("""
+      UPDATE material_course_crossref
+      SET courseId = :newCourseId
+      WHERE materialId = :materialId AND courseId = :oldCourseId
+    """)
+    suspend fun updateCourseForMaterial(materialId: Long, oldCourseId: Long, newCourseId: Long)
+
     @Query("DELETE FROM material_course_crossref WHERE materialId = :materialId")
     suspend fun deleteMaterialCourseCrossRefsByMaterial(materialId: Long)
 
+    @Query("DELETE FROM material_course_crossref WHERE materialId = :materialId AND courseId = :oldCourseId")
+    suspend fun deleteMaterialCourseCrossRefByMaterial(materialId: Long, oldCourseId: Long)
+
+    @Transaction
     @Query("""
         SELECT m.* FROM materials m
         JOIN material_group_crossref mg ON mg.materialId = m.id
-        WHERE mg.groupId = :groupId
+        WHERE (:groupId IS NULL AND mg.groupId IS NULL) OR (:groupId IS NOT NULL AND mg.groupId = :groupId)
         ORDER BY m.updatedAt DESC
     """)
-    fun getMaterialsByGroupIdFlow(groupId: Long): Flow<List<MaterialEntity>>
+    fun getMaterialsByGroupIdFlow(groupId: Long?): Flow<List<MaterialEntity>>
 
+    @Transaction
+    @Query("""
+        SELECT m.* FROM materials m
+        JOIN material_group_crossref mg ON mg.materialId = m.id
+        WHERE (:groupId IS NULL AND mg.groupId IS NULL) OR (:groupId IS NOT NULL AND mg.groupId = :groupId)
+        ORDER BY m.updatedAt DESC
+    """)
+    suspend fun getMaterialsByGroupId(groupId: Long?): List<MaterialEntity>
+
+    @Transaction
     @Query("""
         DELETE FROM materials
         WHERE id IN (
@@ -192,14 +241,39 @@ interface MaterialDao {
     """)
     suspend fun deleteMaterialsByGroupId(groupId: Long)
 
+    @Transaction
     @Query("""
         SELECT m.* FROM materials m
         JOIN material_course_crossref mc ON mc.materialId = m.id
-        WHERE mc.courseId = :courseId
+        WHERE (:courseId IS NULL AND mc.courseId IS NULL) OR (:courseId IS NOT NULL AND mc.courseId = :courseId)
         ORDER BY m.updatedAt DESC
     """)
-    fun getMaterialsByCourseIdFlow(courseId: Long): Flow<List<MaterialEntity>>
+    fun getMaterialsByCourseIdFlow(courseId: Long?): Flow<List<MaterialEntity>>
 
+    @Transaction
+    @Query("""
+        SELECT m.* FROM materials m
+        LEFT JOIN material_course_crossref mc ON mc.materialId = m.id
+        WHERE (:courseId IS NULL AND mc.courseId IS NULL) OR (:courseId IS NOT NULL AND mc.courseId = :courseId)
+        ORDER BY m.updatedAt DESC
+    """)
+    suspend fun getMaterialsByCourseId(courseId: Long?): List<MaterialEntity>
+
+    @Transaction
+    @Query("""
+    SELECT m.* FROM materials m
+    LEFT JOIN material_course_crossref mc ON mc.materialId = m.id
+    LEFT JOIN material_group_crossref mg ON mg.materialId = m.id
+    WHERE (
+            (:courseId IS NULL AND mc.courseId IS NULL)
+         OR (:courseId IS NOT NULL AND mc.courseId = :courseId)
+    )
+      AND mg.materialId IS NULL
+    ORDER BY m.updatedAt DESC
+""")
+    suspend fun getNoGroupedMaterialsByCourseId(courseId: Long?): List<MaterialEntity>
+
+    @Transaction
     @Query("""
         DELETE FROM materials
         WHERE id IN (
@@ -223,7 +297,7 @@ interface MaterialDao {
         val oldMaterial = getMaterialById(oldMaterialId)
         val newMaterial = getMaterialById(newMaterialId)
         val createdOldMaterial = oldMaterial?.createdAt?: return
-        val updatedNewMaterial = newMaterial?.copy(createdAt = createdOldMaterial)?: return
+        val updatedNewMaterial = newMaterial?.copy(createdAt = createdOldMaterial, updatedAt = System.currentTimeMillis())?: return
         updateMaterial(updatedNewMaterial)
 
         val groupIds = getGroupIdsByMaterialId(oldMaterialId)

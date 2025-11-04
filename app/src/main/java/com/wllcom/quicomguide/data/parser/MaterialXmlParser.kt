@@ -21,7 +21,7 @@ data class ParsedMaterial(
 object XmlMaterialParser {
 
     private val allowedElementNames = setOf("content", "example")
-    private val inlineTagsToStrip = setOf("code", "inline-code", "tex", "table", "br")
+    private val inlineTagsToStrip = setOf("code", "inline-code", "tex", "inline-tex", "table", "br")
 
     private var toRemoveInlineTags: Boolean = false
 
@@ -29,7 +29,7 @@ object XmlMaterialParser {
         return parse(ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)), removeInlineTags)
     }
 
-    fun parse(input: InputStream, removeInlineTags: Boolean = true): ParsedMaterial? {
+    fun parse(input: InputStream, removeInlineTags: Boolean = false): ParsedMaterial? {
 
         toRemoveInlineTags = removeInlineTags
 
@@ -200,6 +200,17 @@ object XmlMaterialParser {
             val inner = m.groups[2]?.value ?: ""
             val safeInner = inner.replace("]]>", "]]]]><![CDATA[>")
             "<tex$attrs><![CDATA[$safeInner]]></tex>"
+        }
+
+        val inlineTexRegex = Regex(
+            """<inline-tex\b([^>]*)>(.*?)</inline-tex>""",
+            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
+        )
+        result = inlineTexRegex.replace(result) { m ->
+            val attrs = m.groups[1]?.value ?: ""
+            val inner = m.groups[2]?.value ?: ""
+            val safeInner = inner.replace("]]>", "]]]]><![CDATA[>")
+            "<inline-tex$attrs><![CDATA[$safeInner]]></inline-tex>"
         }
 
         return result

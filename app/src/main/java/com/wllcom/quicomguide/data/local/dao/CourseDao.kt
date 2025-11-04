@@ -9,6 +9,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CourseDao {
+
+    @Query("SELECT name FROM courses")
+    suspend fun getAllCourseName(): List<String>
+
     @Query("SELECT * FROM courses ORDER BY name")
     fun getAllCoursesFlow(): Flow<List<CourseEntity>>
 
@@ -17,6 +21,9 @@ interface CourseDao {
 
     @Query("SELECT * FROM courses WHERE id = :id LIMIT 1")
     suspend fun getCourseById(id: Long): CourseEntity?
+
+    @Query("SELECT * FROM courses WHERE name = :name LIMIT 1")
+    suspend fun getCourseByName(name: String): CourseEntity?
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCourse(course: CourseEntity): Long
