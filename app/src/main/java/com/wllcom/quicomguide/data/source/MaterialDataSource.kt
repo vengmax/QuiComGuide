@@ -2,6 +2,7 @@ package com.wllcom.quicomguide.data.source
 
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.local.dao.MaterialDao
+import com.wllcom.quicomguide.data.local.entities.MaterialFts
 import com.wllcom.quicomguide.data.local.entities.SectionElementChunkEmbeddingEntity
 import com.wllcom.quicomguide.data.local.relations.MaterialWithSections
 import com.wllcom.quicomguide.data.ml.EmbeddingProvider
@@ -98,10 +99,10 @@ class MaterialDataSource @Inject constructor(
             val (sectionId, elementIds) = sectionsResult[sIdx]
             for ((elemIdx, elem) in parsedSec.elements.withIndex()) {
                 val elementId = elementIds[elemIdx]
-                val content = elem.second
+                val content = if(elem.first == "example") "Пример " + elem.second else elem.second
 
                 // choose chunking method
-                val newContent = encodeCharsInTags(content)
+                val newContent = encodeWhitespaces(content)
                 val maxTokensChunk = (128 + newContent.second).coerceAtMost(512)
                 val chunks = if (embeddingProvider.publicTokenizer != null) {
                     chunkTextUsingTokenizer(
@@ -117,7 +118,7 @@ class MaterialDataSource @Inject constructor(
                 // compute chunk embeddings
                 val chunkEmbeddings = mutableListOf<FloatArray>()
                 for (chunk in chunks) {
-                    val prepareChunk = simplifyXml(simplifyKaTeXInTexTags(chunk))
+                    val prepareChunk = simplifyXml(simplifyKaTeXInTexTags(decodeAllWhitespaces(chunk)))
 
                     val emb = withContext(Dispatchers.Default) {
                         embeddingProvider.embed(prepareChunk.lowercase())
@@ -144,7 +145,7 @@ class MaterialDataSource @Inject constructor(
                     SectionElementChunkEmbeddingEntity(
                         sectionElementId = elementId,
                         chunkIndex = idx,
-                        chunkText = decodeCharsInTags(chunks[idx]).first,
+                        chunkText = decodeAllWhitespaces(chunks[idx]),
                         chunkEmbedding = floatArrayToBytes(ch)
                     )
                 }
@@ -348,8 +349,13 @@ class MaterialDataSource @Inject constructor(
     private fun simplifyXml(input: String): String {
         if (input.isEmpty()) return input
 
-        return input.replace(Regex("</?(code|inline-code|tex|inline-tex|table|br)[^>]*>"), "")
-            .replace(Regex("\\s+"), " ")
+        return input
+            .replace(Regex("</?(code|inline-code|tex|inline-tex|table|br)[^>]*>"), "")
+//            .replace(Regex("</?(br)[^>]*>"), "")
+//            .replace(Regex("</?(code|inline-code)[^>]*>"), " код ")
+//            .replace(Regex("</?(tex|inline-tex)[^>]*>"), " формула ")
+//            .replace(Regex("</?(table)[^>]*>"), " таблица ")
+//            .replace(Regex("\\s+"), " ")
             .trim()
     }
 
@@ -502,7 +508,7 @@ class MaterialDataSource @Inject constructor(
      * ' '  -> '➲'
      * Возвращает Pair(результирующая строка, общее количество замен).
      */
-    fun encodeCharsInTags(input: String): Pair<String, Int> {
+    fun encodeWhitespaces(input: String): Pair<String, Int> {
         val regex = Regex("(?s)<(code|inline-code|table)(\\s[^>]*)?>(.*?)</\\1>", RegexOption.IGNORE_CASE)
         val sb = StringBuilder()
         var lastIndex = 0
@@ -556,52 +562,12 @@ class MaterialDataSource @Inject constructor(
      * Реализация восстановления простая: для содержимого используем последовательные replace,
      * а количество замен считаем как (parts.size - 1) для каждого токена.
      */
-    fun decodeCharsInTags(input: String): Pair<String, Int> {
-        val regex = Regex("(?s)<(code|inline-code|table)(\\s[^>]*)?>(.*?)</\\1>", RegexOption.IGNORE_CASE)
-        val sb = StringBuilder()
-        var lastIndex = 0
-        var totalReplacements = 0
-
-        for (m in regex.findAll(input)) {
-            val range = m.range
-            sb.append(input, lastIndex, range.first)
-
-            val tagName = m.groupValues[1]
-            val attrs = m.groupValues[2]
-            val content = m.groupValues[3]
-
-            // Считаем вхождения токенов (split даст количество вхождений = parts.size - 1)
-            fun countTokenOccurrences(haystack: String, token: String): Int {
-                if (token.isEmpty()) return 0
-                val parts = haystack.split(token)
-                return parts.size - 1
-            }
-
-            val countNl = countTokenOccurrences(content, "⇪")
-            val countCr = countTokenOccurrences(content, "➽")
-            val countTab = countTokenOccurrences(content, "▦")
-            val countSpace = countTokenOccurrences(content, "➲")
-
-            totalReplacements += countNl + countCr + countTab + countSpace
-
-            // Простая последовательная замена (как вы просили — такой уникальный набор токенов
-            // в обычном тексте встречаться не будет, поэтому порядок безопасен)
-            val newContent = content
-                .replace("⇪", "\n")
-                .replace("➽", "\r")
-                .replace("▦", "\t")
-                .replace("➲", " ")
-
-            sb.append("<").append(tagName)
-            if (attrs.isNotEmpty()) sb.append(attrs)
-            sb.append(">")
-            sb.append(newContent)
-            sb.append("</").append(tagName).append(">")
-            lastIndex = range.last + 1
-        }
-
-        sb.append(input, lastIndex, input.length)
-        return sb.toString() to totalReplacements
+    fun decodeAllWhitespaces(input: String): String {
+        return input
+            .replace("⇪", "\n")
+            .replace("➽", "\r")
+            .replace("▦", "\t")
+            .replace("➲", " ")
     }
 
     /**
@@ -628,15 +594,18 @@ class MaterialDataSource @Inject constructor(
     ): String {
         var sectionContent =
             materialWithSection.sections.firstOrNull()?.elements?.firstOrNull()?.content?.take(snippetLen) ?: ""
-        sectionContent = sectionContent
-            .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
-            .replace(Regex("</?table[^>]*>"), "<таблица>")
-            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+
 
         val q = query.trim()
         if (q.isEmpty()) {
+
+            sectionContent = sectionContent
+                .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
+                .replace(Regex("</?table[^>]*>"), "<таблица>")
+                .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+
             return sectionContent.take(snippetLen)
         }
 
@@ -645,10 +614,23 @@ class MaterialDataSource @Inject constructor(
         for (t in terms) {
             for (section in materialWithSection.sections) {
                 for (element in section.elements) {
-                    val lcSectionContent = element.content.lowercase()
+
+                    var lcSectionContent = element.content.lowercase()
+                    lcSectionContent = lcSectionContent
+                        .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
+                        .replace(Regex("</?table[^>]*>"), "<таблица>")
+                        .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
+                        .replace(Regex("\\s+"), " ")
+                        .trim()
+
                     idx = lcSectionContent.indexOf(t)
                     if (idx >= 0) {
-                        sectionContent = element.content.replace(Regex("\\s+"), " ").trim()
+                        sectionContent = element.content
+                            .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
+                            .replace(Regex("</?table[^>]*>"), "<таблица>")
+                            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
+                            .replace(Regex("\\s+"), " ")
+                            .trim()
                         break
                     }
                 }
@@ -661,12 +643,12 @@ class MaterialDataSource @Inject constructor(
             return sectionContent.take(snippetLen)
         }
 
-        sectionContent = sectionContent
-            .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
-            .replace(Regex("</?table[^>]*>"), "<таблица>")
-            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
-            .replace(Regex("\\s+"), " ")
-            .trim()
+//        sectionContent = sectionContent
+//            .replace(Regex("</?(code|inline-code|br)[^>]*>"), " ")
+//            .replace(Regex("</?table[^>]*>"), "<таблица>")
+//            .replace(Regex("</?(tex|inline-tex)[^>]*>"), "<форматированный текст>")
+//            .replace(Regex("\\s+"), " ")
+//            .trim()
 
         var start = (idx - snippetLen / 4).coerceAtLeast(0)
         if (start != 0) {
@@ -786,8 +768,11 @@ class MaterialDataSource @Inject constructor(
             for (t in unopenedClosers) {
                 val openTag = "<$t>"
                 val closeTag = "</$t>"
-                if (prev != null && prev.chunkText.contains(Regex("<$t(\\b|>)", RegexOption.IGNORE_CASE))) {
-                    prefix = prev.chunkText.substring(prev.chunkText.indexOf(openTag))
+                val regexOpen = Regex("<$t(\\b|>)", RegexOption.IGNORE_CASE)
+                if (prev != null && prev.chunkText.contains(regexOpen)) {
+                    prefix = prev.chunkText.substring(
+                        regexOpen.findAll(prev.chunkText).last().range.first
+                    )
                 } else {
                     if(t == "tex" || t == "inline-tex") {
                         snippet = snippet.removeRange(0, snippet.indexOf(closeTag) + closeTag.length)
@@ -826,6 +811,94 @@ class MaterialDataSource @Inject constructor(
         }
 
         return snippet.trim()
+    }
+
+    fun resetFiltrationSpecialCharactersXml(input: String): String {
+        // Основные теги, в которых нужно обрабатывать содержимое (с атрибутами)
+        val outerTagRegex = Regex(
+            "<(content|example)(\\s+[^>]*)?>(.*?)</\\1>",
+            RegexOption.DOT_MATCHES_ALL
+        )
+
+        // Теги, внутри которых ничего не меняем
+        val protectedTagRegex = Regex(
+            "<(code|tex|inline-code|inline-tex)(\\s+[^>]*)?>.*?</\\1>",
+            RegexOption.DOT_MATCHES_ALL
+        )
+
+        // Универсальный регекс для любых XML-тегов
+        val anyTagRegex = Regex("<[^>]+>")
+
+        // Замена служебных символов XML
+        fun escapeXml(text: String): String = text
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&apos;","'")
+
+        // Обработка текста вне <code> и т.п., но с сохранением всех тегов
+        fun processOutsideProtected(text: String): String {
+            val sb = StringBuilder()
+            var lastIndex = 0
+
+            for (tagMatch in anyTagRegex.findAll(text)) {
+                val before = text.substring(lastIndex, tagMatch.range.first)
+                sb.append(escapeXml(before)) // экранируем только чистый текст
+                sb.append(tagMatch.value)    // теги не трогаем
+                lastIndex = tagMatch.range.last + 1
+            }
+
+            // остаток после последнего тега
+            sb.append(escapeXml(text.substring(lastIndex)))
+            return sb.toString()
+        }
+
+        // Обработка содержимого внутри content/example
+        fun processContent(text: String): String {
+            val sb = StringBuilder()
+            var lastIndex = 0
+
+            // Пропускаем участки, находящиеся внутри защищённых тегов
+            for (protectedMatch in protectedTagRegex.findAll(text)) {
+                // участок ДО защищённого тега
+                val before = text.substring(lastIndex, protectedMatch.range.first)
+                sb.append(processOutsideProtected(before))
+                // вставляем защищённый тег без изменений
+                sb.append(protectedMatch.value)
+                lastIndex = protectedMatch.range.last + 1
+            }
+
+            // остаток после последнего защищённого участка
+            sb.append(processOutsideProtected(text.substring(lastIndex)))
+            return sb.toString()
+        }
+
+        val result = StringBuilder()
+        var lastIndex = 0
+
+        // Ищем все <content ...>...</content> и <example ...>...</example>
+        for (outerMatch in outerTagRegex.findAll(input)) {
+            val before = input.substring(lastIndex, outerMatch.range.first)
+            result.append(before) // часть вне целевых тегов — без изменений
+
+            val tagName = outerMatch.groupValues[1]
+            val tagAttrs = outerMatch.groupValues[2] // может быть пустым
+            val innerText = outerMatch.groupValues[3]
+
+            val processed = processContent(innerText)
+
+            result.append("<$tagName${tagAttrs}>")
+            result.append(processed)
+            result.append("</$tagName>")
+
+            lastIndex = outerMatch.range.last + 1
+        }
+
+        // Добавляем хвост (если после последнего блока что-то осталось)
+        result.append(input.substring(lastIndex))
+
+        return result.toString()
     }
 
     private suspend fun buildConciseAnswerDynamicFromChunks(
@@ -885,8 +958,17 @@ class MaterialDataSource @Inject constructor(
             val key = frag.trim().lowercase()
             if (selectedSnippets.any { it.trim().lowercase() == key }) continue
 
-            if (sb.isNotEmpty()) sb.append("<br/><br/>")
-            sb.append(frag)
+            if (sb.isNotEmpty())
+                sb.append("<br/><br/>")
+
+            var prefixFrag = "<strong>Материал: ${chunkWithCtx.materialTitle}</strong><br/>"
+            var suffixFrag = ""
+            if (chunkWithCtx.chunk.chunkIndex != 0)
+                prefixFrag += "..."
+            if(frag.last() != '.' && frag.last() != ',' && frag.last() != '!' && frag.last() != '?')
+                suffixFrag = "..."
+
+            sb.append(prefixFrag + resetFiltrationSpecialCharactersXml(frag) + suffixFrag)
             selectedSnippets.add(frag)
             selectedEmbeddings.add(combined)
 
