@@ -5,7 +5,6 @@
 <p float="left">
   <img src="https://github.com/user-attachments/assets/7f298521-644d-4c0b-a4d1-07d7370781d9" width="300" />
   <img src="https://github.com/user-attachments/assets/96014633-e04d-47a0-ac4c-b177999eaa69" width="300" />
-  <img src="https://github.com/user-attachments/assets/2a71fcbb-2711-4c89-892c-99d9eb7568fc" width="300" />
 </p>
 
 ---
