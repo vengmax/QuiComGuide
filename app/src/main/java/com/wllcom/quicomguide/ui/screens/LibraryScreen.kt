@@ -266,11 +266,14 @@ fun LibraryScreen(systemPadding: PaddingValues, navController: NavController) {
                 item {
                     Spacer(modifier = Modifier.height(statusPadding + 48.dp))
                 }
-                items(groupsWithMaterials, key = { "group-${it.group.id}" }) { gwm ->
+                val groupFiltered = groupsWithMaterials.filter { groupsMat -> filtered.any { mat -> mat in groupsMat.materials }  }
+                items(groupFiltered, key = { "group-${it.group.id}" }) { gwm ->
                     val group = gwm.group
-                    val displayedGroupMaterials = remember(gwm.materials, baseIds) {
+                    val unfilteredDisplayedGroupMaterials = remember(gwm.materials, baseIds) {
                         if (selectedCourse == null) gwm.materials else gwm.materials.filter { it.id in baseIds }
                     }
+                    val mapFilteredMatId = filtered.map { it.id }
+                    val displayedGroupMaterials = unfilteredDisplayedGroupMaterials.filter { it.id in mapFilteredMatId }
 
                     MaterialCardGroup(
                         groupName = group.name,

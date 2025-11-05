@@ -87,9 +87,9 @@ fun AnimatedSearchField(
     val placeholderText = if (selectedSearchMode == EnumSearchMode.EMBEDDING)
         "AI поиск..."
     else if (selectedSearchMode == EnumSearchMode.BOTH)
-        "Точный поиск..."
+        "Поиск со стеммингом + AI..."
     else
-        "Поиск..."
+        "Поиск со стеммингом..."
 
     val colors = listOf(
         Color(0xFFFDD835), Color(0xFFFD9900), Color(0xFFFF5D93),
@@ -191,17 +191,17 @@ fun AnimatedSearchField(
                         .fillMaxWidth()
                         .padding(18.dp, 0.dp, 18.dp, 10.dp)
                 ) {
-                    MenuItem(text = "Обычный поиск", selectedSearchMode == EnumSearchMode.FTS) {
-                        expanded = false
-                        selectedSearchMode = EnumSearchMode.FTS
-                        fallbackMode(selectedSearchMode)
-                    }
                     MenuItem(text = "AI поиск", selectedSearchMode == EnumSearchMode.EMBEDDING) {
                         expanded = false
                         selectedSearchMode = EnumSearchMode.EMBEDDING
                         fallbackMode(selectedSearchMode)
                     }
-                    MenuItem(text = "Обычный поиск + AI поиск", selectedSearchMode == EnumSearchMode.BOTH) {
+                    MenuItem(text = "Поиск со стеммингом", selectedSearchMode == EnumSearchMode.FTS) {
+                        expanded = false
+                        selectedSearchMode = EnumSearchMode.FTS
+                        fallbackMode(selectedSearchMode)
+                    }
+                    MenuItem(text = "Поиск со стеммингом + AI поиск", selectedSearchMode == EnumSearchMode.BOTH) {
                         expanded = false
                         selectedSearchMode = EnumSearchMode.BOTH
                         fallbackMode(selectedSearchMode)
