@@ -132,9 +132,10 @@ fun MaterialCardGroup(
         Spacer(modifier = Modifier.height(8.dp))
         LazyRow {
             itemsIndexed(listMaterials) { _, mat ->
-
-                val preview = previewsById[mat.id] ?: ""
-                cardContent(mat.id, mat.title, preview)
+                Box(modifier = Modifier.padding(end = 8.dp)) {
+                    val preview = previewsById[mat.id] ?: ""
+                    cardContent(mat.id, mat.title, preview)
+                }
             }
         }
     }

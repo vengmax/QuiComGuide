@@ -225,7 +225,8 @@ fun AddEditMaterialScreen(
         materialId?.toLongOrNull()?.let { id ->
             val mat = materialDao.getMaterialById(id)
             materialTitle = mat?.title?: "Материал не найден!"
-            xmlValue = TextFieldValue(mat?.xmlRaw ?: "Материал не найден!")
+            val xmlText = mat?.xmlRaw ?: "Материал не найден!"
+            xmlValue = TextFieldValue(resetFiltrationSpecialCharactersXml(xmlText))
 
             // find group and course
             val groupsWithThisMat = materialDao.getGroupIdsByMaterialId(id)
@@ -414,7 +415,7 @@ fun AddEditMaterialScreen(
                                         }
                                     }
 
-                                    xmlValue = xmlValue.copy(escapeXmlInContentAndExample(xmlValue.text))
+                                    val escapeXmlValue = xmlValue.copy(filtrationSpecialCharactersXml(xmlValue.text))
 
                                     uploadingMaterial = true
                                     uploadingMaterialState = false
@@ -422,7 +423,7 @@ fun AddEditMaterialScreen(
                                     jobCreateOrUpdateMaterial?.cancel()
                                     jobCreateOrUpdateMaterial = scope.launch(start = CoroutineStart.LAZY) {
                                         if (materialId == null) {
-                                            val idNewMaterial = viewModel.addMaterial(materialTitle.trim(), xmlValue.text)
+                                            val idNewMaterial = viewModel.addMaterial(materialTitle.trim(), escapeXmlValue.text)
                                             if (idNewMaterial != null) {
                                                 uploadingMaterialState = true
 
@@ -482,7 +483,7 @@ fun AddEditMaterialScreen(
                                             }
                                         } else {
                                             val newId =
-                                                viewModel.updateMaterial(materialId.toLong(), xmlValue.text)
+                                                viewModel.updateMaterial(materialId.toLong(), escapeXmlValue.text)
                                             if (newId != null) {
                                                 uploadingMaterialState = true
 
@@ -557,7 +558,7 @@ fun AddEditMaterialScreen(
                                             if(materialId == null) {
                                                 val courseName = selectedCourseName
                                                 val groupName = selectedGroupName
-                                                val xml = xmlValue.text
+                                                val xml = escapeXmlValue.text
                                                 storageViewMode.uploadMaterial(
                                                     accessToken = au.accessToken,
                                                     uniqueFileName = materialTitle.trim(),
@@ -569,7 +570,7 @@ fun AddEditMaterialScreen(
                                             else{
                                                 val courseName = selectedCourseName
                                                 val groupName = selectedGroupName
-                                                val xml = xmlValue.text
+                                                val xml = escapeXmlValue.text
                                                 jobUploadMaterial?.cancel()
                                                 jobUploadMaterial = scope.launch(start = CoroutineStart.LAZY) {
                                                     storageViewMode.uploadMaterial(
@@ -1138,7 +1139,7 @@ fun ActionMenuButton(
 }
 
 
-fun escapeXmlInContentAndExample(input: String): String {
+fun filtrationSpecialCharactersXml(input: String): String {
     // Основные теги, в которых нужно обрабатывать содержимое (с атрибутами)
     val outerTagRegex = Regex(
         "<(content|example)(\\s+[^>]*)?>(.*?)</\\1>",
@@ -1161,6 +1162,94 @@ fun escapeXmlInContentAndExample(input: String): String {
         .replace(">", "&gt;")
         .replace("\"", "&quot;")
         .replace("'", "&apos;")
+
+    // Обработка текста вне <code> и т.п., но с сохранением всех тегов
+    fun processOutsideProtected(text: String): String {
+        val sb = StringBuilder()
+        var lastIndex = 0
+
+        for (tagMatch in anyTagRegex.findAll(text)) {
+            val before = text.substring(lastIndex, tagMatch.range.first)
+            sb.append(escapeXml(before)) // экранируем только чистый текст
+            sb.append(tagMatch.value)    // теги не трогаем
+            lastIndex = tagMatch.range.last + 1
+        }
+
+        // остаток после последнего тега
+        sb.append(escapeXml(text.substring(lastIndex)))
+        return sb.toString()
+    }
+
+    // Обработка содержимого внутри content/example
+    fun processContent(text: String): String {
+        val sb = StringBuilder()
+        var lastIndex = 0
+
+        // Пропускаем участки, находящиеся внутри защищённых тегов
+        for (protectedMatch in protectedTagRegex.findAll(text)) {
+            // участок ДО защищённого тега
+            val before = text.substring(lastIndex, protectedMatch.range.first)
+            sb.append(processOutsideProtected(before))
+            // вставляем защищённый тег без изменений
+            sb.append(protectedMatch.value)
+            lastIndex = protectedMatch.range.last + 1
+        }
+
+        // остаток после последнего защищённого участка
+        sb.append(processOutsideProtected(text.substring(lastIndex)))
+        return sb.toString()
+    }
+
+    val result = StringBuilder()
+    var lastIndex = 0
+
+    // Ищем все <content ...>...</content> и <example ...>...</example>
+    for (outerMatch in outerTagRegex.findAll(input)) {
+        val before = input.substring(lastIndex, outerMatch.range.first)
+        result.append(before) // часть вне целевых тегов — без изменений
+
+        val tagName = outerMatch.groupValues[1]
+        val tagAttrs = outerMatch.groupValues[2] // может быть пустым
+        val innerText = outerMatch.groupValues[3]
+
+        val processed = processContent(innerText)
+
+        result.append("<$tagName${tagAttrs}>")
+        result.append(processed)
+        result.append("</$tagName>")
+
+        lastIndex = outerMatch.range.last + 1
+    }
+
+    // Добавляем хвост (если после последнего блока что-то осталось)
+    result.append(input.substring(lastIndex))
+
+    return result.toString()
+}
+
+fun resetFiltrationSpecialCharactersXml(input: String): String {
+    // Основные теги, в которых нужно обрабатывать содержимое (с атрибутами)
+    val outerTagRegex = Regex(
+        "<(content|example)(\\s+[^>]*)?>(.*?)</\\1>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
+    // Теги, внутри которых ничего не меняем
+    val protectedTagRegex = Regex(
+        "<(code|tex|inline-code|inline-tex)(\\s+[^>]*)?>.*?</\\1>",
+        RegexOption.DOT_MATCHES_ALL
+    )
+
+    // Универсальный регекс для любых XML-тегов
+    val anyTagRegex = Regex("<[^>]+>")
+
+    // Замена служебных символов XML
+    fun escapeXml(text: String): String = text
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;","'")
 
     // Обработка текста вне <code> и т.п., но с сохранением всех тегов
     fun processOutsideProtected(text: String): String {

@@ -27,13 +27,18 @@ table.chat-table thead th {
   font-weight: 600;
   border-bottom: 1px solid rgba(15,23,42,0.06);
   background: #f6f8fa;
+  word-break: normal;        /* вернуться к нормальным правилам переноса */
+  overflow-wrap: normal;     /* не ломать длинные слова принудительно */
+  white-space: normal;       /* разрешить перенос по пробелам/дефисам */
 }
 
 table.chat-table tbody td {
   padding: 0.75em 1em;
   vertical-align: middle;
   border-bottom: 1px solid rgba(15,23,42,0.06);
-  word-break: break-word;
+  word-break: normal;        /* вернуться к нормальным правилам переноса */
+  overflow-wrap: normal;     /* не ломать длинные слова принудительно */
+  white-space: normal;       /* разрешить перенос по пробелам/дефисам */
 }
 
 table.chat-table tr:last-child td {
