@@ -700,13 +700,6 @@ class MaterialDataSource @Inject constructor(
         return snip
     }
 
-
-    private fun replaceTexWithPlaceholder(input: String): String {
-        val inlineTexRe = Regex("""<inline-tex\b[^>]*>.*?</inline-tex>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-        val texRe = Regex("""<tex\b[^>]*>.*?</tex>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-        return input.replace(inlineTexRe, "<Большая формула>").replace(texRe, "<Большая формула>")
-    }
-
     private fun collectTagEvents(input: String): List<Triple<Int, Boolean, String>> {
         // returns list of (position, isOpen, tagName) ordered by position
         val events = mutableListOf<Triple<Int, Boolean, String>>()

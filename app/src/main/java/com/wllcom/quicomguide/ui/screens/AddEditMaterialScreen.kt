@@ -9,6 +9,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +28,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
 import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
@@ -62,6 +66,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -73,15 +78,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -197,6 +208,10 @@ fun AddEditMaterialScreen(
                 selection = TextRange(11)
             )
         )
+    }
+    val darkMode = isSystemInDarkTheme()
+    val highlightedText = remember(xmlValue) {
+        highlightXML(xmlValue.text, darkMode)
     }
 
     // Лаунчер для выбора XML-файла
@@ -620,23 +635,48 @@ fun AddEditMaterialScreen(
                         .background(bg, shape = RoundedCornerShape(8.dp))
                         .padding(2.dp)
                 ) {
-                    OutlinedTextField(
-                        enabled = !uploadingMaterial,
-                        value = xmlValue,
-                        onValueChange = {
-                            var text = it.text
-                            if (text.takeLast(5) != "\n\n\n\n\n")
-                                text += "\n\n\n\n\n"
-                            xmlValue = it.copy(text)
-                        },
-                        modifier = Modifier.horizontalScroll(rememberScrollState()).fillMaxSize(),
-                        singleLine = false,
-                        maxLines = Int.MAX_VALUE,
-                        textStyle = LocalTextStyle.current.copy(
-                            fontSize = 12.sp,
-                            lineHeight = 18.sp
-                        ),
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .horizontalScroll(rememberScrollState())
+                            .background(MaterialTheme.colorScheme.outlineVariant, shape = RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline)
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            modifier = Modifier.fillMaxSize(),
+                            text = highlightedText,
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                lineHeight = 15.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        )
+                        BasicTextField(
+                            enabled = !uploadingMaterial,
+                            value = xmlValue,
+                            onValueChange = {
+                                var text = it.text
+                                if (text.takeLast(5) != "\n\n\n\n\n")
+                                    text += "\n\n\n\n\n"
+                                xmlValue = it.copy(text)
+                            },
+                            textStyle = TextStyle(
+                                color = Color.Transparent,
+                                fontSize = 12.sp,
+                                lineHeight = 15.sp,
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            modifier = Modifier.fillMaxSize(),
+                            singleLine = false,
+                            maxLines = Int.MAX_VALUE,
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            decorationBox = { innerTextField ->
+                                innerTextField()
+                            }
+                        )
+                    }
                 }
             }
 
@@ -1313,4 +1353,123 @@ fun resetFiltrationSpecialCharactersXml(input: String): String {
     result.append(input.substring(lastIndex))
 
     return result.toString()
+}
+
+fun collectTagEvents(input: String): List<Pair<MatchResult, Boolean>> {
+    // returns list of (position, isOpen, tagName) ordered by position
+    val events = mutableListOf<Pair<MatchResult, Boolean>>()
+    val openRe = Regex("""<(material|section|title|content|example|code|inline-code|table|inline-tex|tex)(\b[^\r\n>]*)?>""",
+        setOf(RegexOption.IGNORE_CASE))
+    val closeRe = Regex("""</(material|section|title|content|example|code|inline-code|table|inline-tex|tex)>""",
+        setOf(RegexOption.IGNORE_CASE))
+    openRe.findAll(input).forEach { events.add(Pair(it, true)) }
+    closeRe.findAll(input).forEach { events.add(Pair(it, false)) }
+    return events.sortedBy { it.first.range.first }
+}
+
+fun getIncorrectTags(text: String): List<Triple<IntRange, String, Boolean>> {
+    val stackName = ArrayDeque<String>()
+    val stack = ArrayDeque<Triple<IntRange, String, Boolean>>()
+    val incor = mutableListOf<Triple<IntRange, String, Boolean>>()
+    for ((matchResult, isOpen) in collectTagEvents(text)) {
+        if (isOpen) {
+            stackName.addLast(matchResult.groupValues[1])
+            stack.addLast(Triple(matchResult.range, matchResult.value, true))
+        } else {
+            if (stack.isNotEmpty() && stackName.last() == matchResult.groupValues[1]) {
+                stackName.removeLast()
+                stack.removeLast()
+            } else {
+                while(stack.isNotEmpty()) {
+                    if (matchResult.groupValues[1] !in stackName) {
+                        incor.add(Triple(matchResult.range, matchResult.value, true))
+                        break
+                    }
+                    else {
+                        incor.add(stack.last())
+                        stackName.removeLast()
+                        stack.removeLast()
+                        if (stack.isNotEmpty() && stackName.last() == matchResult.groupValues[1]) {
+                            stackName.removeLast()
+                            stack.removeLast()
+                            break
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return incor // opened but not closed
+}
+
+fun highlightXML(input: String, darkMode: Boolean = false): AnnotatedString {
+    val builder = AnnotatedString.Builder()
+
+    // Цвета для разных элементов
+    val tagColor = if(darkMode) Color(0xFF4FC3F7) else Color(0xFF0017DA)
+    val attrColor = if(darkMode) Color(0xFF81C784) else Color(0xFF077709)
+    val valueColor = if(darkMode) Color(0xFFFFB74D) else Color(0xFFC97802)
+    val errorBg = if(darkMode) Color(0xFFA64249) else Color(0xFFFFCDD2)
+
+    var lastIndex = 0
+    val tagsRegex = Regex("""</?(material|section|title|content|example|code|inline-code|table|inline-tex|tex)(\b[^\r\n>]*)?>""",
+        setOf(RegexOption.IGNORE_CASE))
+
+    val matches = mutableListOf<MatchResult>()
+    matches += tagsRegex.findAll(input)
+    matches.sortBy { it.range.first }
+    var matchesList = matches.map { Triple(it.range, it.value, false) }.toMutableList()
+    matchesList += getIncorrectTags(input)
+    matchesList.sortBy { it.first.first }
+    val grouped = matchesList.groupBy { it.first.first }
+    matchesList = grouped.map { (_, group) ->
+        group.find { it.third } ?: group.first()
+    }.toMutableList()
+
+    for (match in matchesList) {
+        val range = match.first
+        if (lastIndex < range.first) {
+            builder.append(input.substring(lastIndex, range.first))
+        }
+
+        val indexSpace = match.second.indexOf(' ')
+        if(indexSpace != -1) {
+            val tagStartText = match.second.take(indexSpace)
+            builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                append(tagStartText)
+            }
+            val indexEqual = match.second.indexOf('=', indexSpace)
+            if(indexEqual != -1){
+                val attrText = match.second.substring(indexSpace, indexEqual + 1)
+                builder.withStyle(SpanStyle(color = attrColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                    append(attrText)
+                }
+                val indexCloseTag = match.second.indexOf('>', indexSpace)
+                if(indexCloseTag != -1){
+                    val valueAttrText = match.second.substring(indexEqual + 1, indexCloseTag)
+                    builder.withStyle(SpanStyle(color = valueColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                        append(valueAttrText)
+                    }
+
+                    val closeTagText = match.second.substring(indexCloseTag)
+                    builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                        append(closeTagText)
+                    }
+                }
+            }
+        }
+        else{
+            builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                append(match.second)
+            }
+        }
+
+        lastIndex = range.last + 1
+    }
+
+    if (lastIndex < input.length) {
+        builder.append(input.substring(lastIndex))
+    }
+
+    return builder.toAnnotatedString()
 }
