@@ -22,7 +22,7 @@ android {
 
     signingConfigs {
         create("Signed") {
-            storeFile = file("C:\\Users\\maksi\\OneDrive\\Desktop\\QuiComGuide Key\\keystore") // путь к твоему keystore
+            storeFile = file("C:\\Users\\maksi\\Desktop\\QuiComGuide Key\\keystore") // путь к твоему keystore
             storePassword = "Maks.19283746"
             keyAlias = "quicomguidekey"
             keyPassword = "Maks.19283746"

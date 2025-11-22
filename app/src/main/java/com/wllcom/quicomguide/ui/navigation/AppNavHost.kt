@@ -13,7 +13,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavHostController
@@ -33,6 +36,7 @@ fun AppNavHost(
 ) {
     val context = LocalContext.current
     val viewModelAuth: AuthViewModel = hiltViewModel()
+    var skipAuthRecomposition by rememberSaveable { mutableStateOf(false) }
     val authState by viewModelAuth.authState.collectAsState()
 
     // init WebView
@@ -138,11 +142,14 @@ fun AppNavHost(
     }
 
     LaunchedEffect(authState) {
-        if (authState != null && authState !is AuthService.AuthState.Authenticated) {
-            navController.navigate("signIn"){
-                popUpTo("signIn") { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+        if(!skipAuthRecomposition) {
+            if (authState != null && authState !is AuthService.AuthState.Authenticated) {
+                skipAuthRecomposition = true
+                navController.navigate("signIn") {
+                    popUpTo("signIn") { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
             }
         }
     }

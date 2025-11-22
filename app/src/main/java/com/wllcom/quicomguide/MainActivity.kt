@@ -77,9 +77,7 @@ class MainActivity : ComponentActivity() {
 //                }
 
                 // сохраняем controller между конфигурациями
-                if (!::navController.isInitialized) {
-                    navController = rememberNavController()
-                }
+                navController = rememberNavController()
 
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route

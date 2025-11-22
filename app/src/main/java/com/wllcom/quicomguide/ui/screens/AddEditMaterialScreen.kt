@@ -6,8 +6,10 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -27,23 +29,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.FormatIndentDecrease
-import androidx.compose.material.icons.automirrored.filled.FormatIndentIncrease
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,27 +63,30 @@ import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -90,13 +94,13 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.wllcom.quicomguide.R
 import com.wllcom.quicomguide.data.local.AppDatabase
 import com.wllcom.quicomguide.data.local.crossref.MaterialCourseCrossRef
 import com.wllcom.quicomguide.data.local.crossref.MaterialGroupCrossRef
@@ -112,6 +116,7 @@ import com.wllcom.quicomguide.ui.viewmodel.SettingsViewModel
 import com.wllcom.quicomguide.ui.viewmodel.StorageViewModel
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
@@ -163,47 +168,47 @@ fun AddEditMaterialScreen(
     var xmlValue by remember {
         mutableStateOf(
             TextFieldValue(
-                text = "<material>\n" +
-                        "   <section>\n" +
-                        "       <title>Новый раздел</title>\n" +
-                        "       <content>\n" +
-                        "           Пример втроенного кода: <inline-code language=\"cpp\">int main()</inline-code><br/>\n" +
-                        "           Пример матрицы:\n" +
-                        "           <tex>\n" +
-                        "               \\begin{bmatrix}\n" +
-                        "               a_{11} & a_{12} & a_{13} \\\\\n" +
-                        "               a_{21} & a_{22} & a_{23} \\\\\n" +
-                        "               a_{31} & a_{32} & a_{33}\n" +
-                        "               \\end{bmatrix}\n" +
-                        "           </tex>\n" +
-                        "           Пример таблицы через тэг tex:\n" +
-                        "           <tex>\n" +
-                        "               \\begin{array}{l l r}\n" +
-                        "               \\textsf{\\textbf{№}} & \\textsf{\\textbf{Имя}} & \\textsf{\\textbf{Возраст}} \\\\[3pt]\n" +
-                        "               \\hline\n" +
-                        "               1 & Анна & 25 \\\\\n" +
-                        "               2 & Борис & 30 \\\\\n" +
-                        "               3 & Виктор & 28 \\\\\n" +
-                        "               \\end{array}\n" +
-                        "           </tex>\n" +
-                        "           Пример таблицы:\n" +
-                        "           <table>\n" +
+                text = "<material>\n\n" +
+                        "<section>\n" +
+                        "<title>Новый раздел</title>\n" +
+                        "<content>\n" +
+                        "Пример втроенного кода: <inline-code language=\"cpp\">int main()</inline-code><br/>\n" +
+                        "Пример матрицы:\n" +
+                        "<tex>\n" +
+                        "\\begin{bmatrix}\n" +
+                        "a_{11} & a_{12} & a_{13} \\\\\n" +
+                        "a_{21} & a_{22} & a_{23} \\\\\n" +
+                        "a_{31} & a_{32} & a_{33}\n" +
+                        "\\end{bmatrix}\n" +
+                        "</tex>\n" +
+                        "Пример таблицы через тэг tex:\n" +
+                        "<tex>\n" +
+                        "\\begin{array}{l l r}\n" +
+                        "\\textsf{\\textbf{№}} & \\textsf{\\textbf{Имя}} & \\textsf{\\textbf{Возраст}} \\\\[3pt]\n" +
+                        "\\hline\n" +
+                        "1 & Анна & 25 \\\\\n" +
+                        "2 & Борис & 30 \\\\\n" +
+                        "3 & Виктор & 28 \\\\\n" +
+                        "\\end{array}\n" +
+                        "</tex>\n" +
+                        "Пример таблицы:\n" +
+                        "<table>\n" +
                         "| № | Имя | Пример |\n" +
                         "|---|-----|--------|\n" +
                         "| 1 | std::vector | <inline-code>std::vector<int></inline-code> |\n" +
                         "| 2 | move | <inline-code language=\"cpp\">std::move(x)</inline-code> |\n" +
                         "| 3 | main | <inline-code language=\"cpp\">int main()</inline-code> |\n" +
-                        "           </table>\n" +
-                        "       </content>\n" +
-                        "       <example>\n" +
-                        "           Пример кода:\n" +
-                        "           <code language=\"cpp\">\n" +
+                        "</table>\n" +
+                        "</content>\n" +
+                        "<example>\n" +
+                        "Пример кода:\n" +
+                        "<code language=\"cpp\">\n" +
                         "int main() {\n" +
                         "   cout << \"Hello world\" << endl;\n" +
                         "}\n" +
-                        "           </code>\n" +
-                        "       </example>\n" +
-                        "   </section>\n" +
+                        "</code>\n" +
+                        "</example>\n" +
+                        "</section>\n\n" +
                         "</material>\n\n\n\n\n",
                 selection = TextRange(11)
             )
@@ -214,14 +219,145 @@ fun AddEditMaterialScreen(
         highlightXML(xmlValue.text, darkMode)
     }
 
+    data class EditAction(
+        val start: Int,
+        val oldPart: String,
+        val newPart: String
+    )
+    val undoStack = remember { mutableStateListOf<EditAction>() }
+    val redoStack = remember { mutableStateListOf<EditAction>() }
+    var lastText by remember { mutableStateOf(xmlValue.text) }
+    var lastSelection by remember { mutableStateOf(TextRange(0,0)) }
+    var debounceJob by remember { mutableStateOf<Job?>(null) }
+
+    fun saveDebounceEditAction(
+        oldText: String,
+        newText: String,
+        oldSelection: TextRange,
+        newSelection: TextRange,
+        debounceMs: Long = 1000L,
+    ) {
+
+        fun saveEditAction(
+            oldText: String,
+            newText: String,
+            oldSelection: TextRange,
+            newSelection: TextRange
+        ) {
+            val start = minOf(oldSelection.start, newSelection.start)
+            val oldPart = oldText.substring(start, oldSelection.end)
+            val newPart = newText.substring(start, newSelection.end)
+
+            if (redoStack.isNotEmpty()) {
+                if (redoStack.last().oldPart == newPart && redoStack.last().start == start)
+                    return
+            }
+            if (undoStack.isNotEmpty()) {
+                if (undoStack.last().newPart == newPart && undoStack.last().start == start)
+                    return
+            }
+
+            if (oldPart != newPart) {
+                undoStack.add(EditAction(start, oldPart, newPart))
+                redoStack.clear()
+            }
+        }
+
+        if(debounceMs == 0L){
+            saveEditAction(oldText, newText, oldSelection, newSelection)
+            lastText = newText
+            lastSelection = newSelection
+        }
+        else{
+            debounceJob?.cancel()
+            debounceJob = scope.launch {
+                delay(debounceMs)
+                saveEditAction(oldText, newText, oldSelection, newSelection)
+
+                lastText = newText
+                lastSelection = newSelection
+            }
+        }
+    }
+
+    fun undo() {
+
+        if(debounceJob != null) {
+            if (debounceJob!!.isActive) {
+                debounceJob!!.cancel()
+                saveDebounceEditAction(
+                    lastText,
+                    xmlValue.text,
+                    lastSelection,
+                    xmlValue.selection,
+                    0L
+                )
+            }
+        }
+
+        if (undoStack.isNotEmpty()) {
+            val action = undoStack.removeAt(undoStack.lastIndex)
+            val current = xmlValue.text
+            val newText = current.replaceRange(
+                action.start,
+                action.start + action.newPart.length,
+                action.oldPart
+            )
+            xmlValue = xmlValue.copy(
+                text = newText,
+                selection = TextRange(action.start + action.oldPart.length)
+            )
+            lastText = xmlValue.text
+            lastSelection = xmlValue.selection
+            redoStack.add(action)
+        }
+    }
+
+    fun redo() {
+
+        if(debounceJob != null) {
+            if (debounceJob!!.isActive) {
+                debounceJob!!.cancel()
+                saveDebounceEditAction(
+                    lastText,
+                    xmlValue.text,
+                    lastSelection,
+                    xmlValue.selection,
+                    0L
+                )
+            }
+        }
+
+        if (redoStack.isNotEmpty()) {
+            val action = redoStack.removeAt(redoStack.lastIndex)
+            val current = xmlValue.text
+            val newText = current.replaceRange(
+                action.start,
+                action.start + action.oldPart.length,
+                action.newPart
+            )
+            xmlValue = xmlValue.copy(
+                text = newText,
+                selection = TextRange(action.start + action.newPart.length)
+            )
+            lastText = xmlValue.text
+            lastSelection = xmlValue.selection
+            undoStack.add(action)
+        }
+    }
+
     // Лаунчер для выбора XML-файла
     var expanded by remember { mutableStateOf(false) }
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { selectedUri ->
-            val text = readTextFromUri(context, selectedUri)
+            val text = readTextFromUri(context, selectedUri) + "\n\n\n\n\n"
             xmlValue = TextFieldValue(text)
+            undoStack.clear()
+            redoStack.clear()
+            lastText = xmlValue.text
+            lastSelection = TextRange(0, 0)
         }
     }
 
@@ -241,7 +377,11 @@ fun AddEditMaterialScreen(
             val mat = materialDao.getMaterialById(id)
             materialTitle = mat?.title?: "Материал не найден!"
             val xmlText = mat?.xmlRaw ?: "Материал не найден!"
-            xmlValue = TextFieldValue(resetFiltrationSpecialCharactersXml(xmlText))
+            xmlValue = TextFieldValue(resetFiltrationSpecialCharactersXml(xmlText) + "\n\n\n\n\n")
+            undoStack.clear()
+            redoStack.clear()
+            lastText = xmlValue.text
+            lastSelection = TextRange(0, 0)
 
             // find group and course
             val groupsWithThisMat = materialDao.getGroupIdsByMaterialId(id)
@@ -633,34 +773,57 @@ fun AddEditMaterialScreen(
                         .fillMaxWidth()
                         .weight(1f)
                         .background(bg, shape = RoundedCornerShape(8.dp))
-                        .padding(2.dp)
+//                        .padding(2.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .horizontalScroll(rememberScrollState())
-                            .background(MaterialTheme.colorScheme.outlineVariant, shape = RoundedCornerShape(8.dp))
-                            .border(1.dp, MaterialTheme.colorScheme.outline)
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            modifier = Modifier.fillMaxSize(),
-                            text = highlightedText,
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                lineHeight = 15.sp,
-                                fontFamily = FontFamily.Monospace
+                            .background(
+                                MaterialTheme.colorScheme.outlineVariant,
+                                shape = RoundedCornerShape(8.dp)
                             )
-                        )
-                        BasicTextField(
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+//                            .padding(8.dp)
+                    ) {
+
+                        TextField(
                             enabled = !uploadingMaterial,
                             value = xmlValue,
                             onValueChange = {
+
                                 var text = it.text
                                 if (text.takeLast(5) != "\n\n\n\n\n")
                                     text += "\n\n\n\n\n"
-                                xmlValue = it.copy(text)
+                                val newXmlValue = it.copy(text)
+
+                                if (xmlValue.text != newXmlValue.text) {
+                                    saveDebounceEditAction(
+                                        lastText,
+                                        newXmlValue.text,
+                                        lastSelection,
+                                        newXmlValue.selection
+                                    )
+                                }
+                                else {
+                                    if(debounceJob != null) {
+                                        if (debounceJob!!.isActive) {
+                                            debounceJob!!.cancel()
+                                            saveDebounceEditAction(
+                                                lastText,
+                                                xmlValue.text,
+                                                lastSelection,
+                                                xmlValue.selection,
+                                                0L
+                                            )
+                                        }
+                                    }
+
+                                    lastSelection = newXmlValue.selection
+                                }
+
+                                xmlValue = newXmlValue
                             },
                             textStyle = TextStyle(
                                 color = Color.Transparent,
@@ -668,13 +831,25 @@ fun AddEditMaterialScreen(
                                 lineHeight = 15.sp,
                                 fontFamily = FontFamily.Monospace
                             ),
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.matchParentSize(),
                             singleLine = false,
                             maxLines = Int.MAX_VALUE,
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                            decorationBox = { innerTextField ->
-                                innerTextField()
-                            }
+//                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+//                            decorationBox = { innerTextField ->
+//                                innerTextField()
+//                            }
+                        )
+                        Text(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                            ,
+                            text = highlightedText,
+                            style = TextStyle(
+                                fontSize = 12.sp,
+                                lineHeight = 15.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
                         )
                     }
                 }
@@ -692,7 +867,10 @@ fun AddEditMaterialScreen(
                     ) {
                         Row(
                             modifier = Modifier
-                                .background(topBarStyle(toolHeightDp, 0.dp).brush, RoundedCornerShape(28.dp))
+                                .background(
+                                    topBarStyle(toolHeightDp, 0.dp).brush,
+                                    RoundedCornerShape(28.dp)
+                                )
                                 .border(
                                     1.dp,
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
@@ -703,63 +881,231 @@ fun AddEditMaterialScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(onClick = {
-                                xmlValue = insertAtCursor(xmlValue, "<title>Заголовок</title>")
-                            }, modifier = Modifier.size(36.dp)) {
-                                Icon(
-                                    Icons.Filled.Title,
-                                    contentDescription = "Добавить title",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            IconButton(onClick = {
-                                val insert =
-                                    "<section>\n  <title>Новый раздел</title>\n  <content>\n\n  </content>\n</section>"
+                                val insert = "<section>\n" +
+                                        "<title>Новый раздел</title>\n" +
+                                        "<content>\nСодержимое...\n</content>\n" +
+                                        "<example>\nПример...\n</example>\n" +
+                                        "</section>\n"
                                 xmlValue = insertAtCursor(xmlValue, insert)
-                            }, modifier = Modifier.size(36.dp)) {
+                                saveDebounceEditAction(
+                                    lastText,
+                                    xmlValue.text,
+                                    lastSelection,
+                                    xmlValue.selection,
+                                    0L
+                                )
+
+                                val offset = ("Новый раздел</title>\n" +
+                                        "<content>\nСодержимое...\n</content>\n" +
+                                        "<example>\nПример...\n</example>\n" +
+                                        "</section>\n").length
+                                val selectionSize = "Новый раздел".length
+                                xmlValue = xmlValue.copy(
+                                    selection = TextRange(
+                                        xmlValue.selection.start - offset,
+                                        xmlValue.selection.end - offset + selectionSize
+                                    )
+                                )
+                                lastSelection = xmlValue.selection
+                            },
+                                modifier = Modifier.size(36.dp)) {
                                 Icon(
-                                    Icons.Filled.TextFields,
-                                    contentDescription = "Добавить секцию",
+                                    painter = painterResource(id = R.drawable.ic_section),
+                                    contentDescription = "Добавить параграф",
+                                    modifier = Modifier.size(15.dp),
+                                )
+                            }
+
+                            Box(modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    onClick = {
+                                        xmlValue = insertAtCursor(xmlValue, "<tex>\nФормула в формате KaTeX\n</tex>")
+                                        saveDebounceEditAction(
+                                            lastText,
+                                            xmlValue.text,
+                                            lastSelection,
+                                            xmlValue.selection,
+                                            0L
+                                        )
+
+                                        val offset = "Формула в формате KaTeX\n</tex>".length
+                                        val selectionSize = "Формула в формате KaTeX".length
+                                        xmlValue = xmlValue.copy(
+                                            selection = TextRange(
+                                                xmlValue.selection.start - offset,
+                                                xmlValue.selection.end - offset + selectionSize
+                                            )
+                                        )
+                                        lastSelection = xmlValue.selection
+                                    },
+                                    onLongClick = {
+                                        xmlValue = insertAtCursor(xmlValue, "<inline-tex>Формула в формате KaTeX</inline-tex>")
+                                        saveDebounceEditAction(
+                                            lastText,
+                                            xmlValue.text,
+                                            lastSelection,
+                                            xmlValue.selection,
+                                            0L
+                                        )
+
+                                        val offset = "Формула в формате KaTeX</inline-tex>".length
+                                        val selectionSize = "Формула в формате KaTeX".length
+                                        xmlValue = xmlValue.copy(
+                                            selection = TextRange(
+                                                xmlValue.selection.start - offset,
+                                                xmlValue.selection.end - offset + selectionSize
+                                            )
+                                        )
+                                        lastSelection = xmlValue.selection
+                                    },
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = LocalIndication.current
+                                ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_tex),
+                                    contentDescription = "Добавить формулу",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            Box(modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    onClick = {
+                                        xmlValue = insertAtCursor(xmlValue, "<code language=\"cpp\">\nКод...\n</code>")
+                                        saveDebounceEditAction(
+                                            lastText,
+                                            xmlValue.text,
+                                            lastSelection,
+                                            xmlValue.selection,
+                                            0L
+                                        )
+
+                                        val offset = "Код...\n</code>".length
+                                        val selectionSize = "Код...".length
+                                        xmlValue = xmlValue.copy(
+                                            selection = TextRange(
+                                                xmlValue.selection.start - offset,
+                                                xmlValue.selection.end - offset + selectionSize
+                                            )
+                                        )
+                                        lastSelection = xmlValue.selection
+                                    },
+                                    onLongClick = {
+                                        xmlValue = insertAtCursor(xmlValue, "<inline-code language=\"cpp\">Код...</inline-code>")
+                                        saveDebounceEditAction(
+                                            lastText,
+                                            xmlValue.text,
+                                            lastSelection,
+                                            xmlValue.selection,
+                                            0L
+                                        )
+
+                                        val offset = "Код...</inline-code>".length
+                                        val selectionSize = "Код...".length
+                                        xmlValue = xmlValue.copy(
+                                            selection = TextRange(
+                                                xmlValue.selection.start - offset,
+                                                xmlValue.selection.end - offset + selectionSize
+                                            )
+                                        )
+                                        lastSelection = xmlValue.selection
+                                    },
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = LocalIndication.current
+                                ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_code),
+                                    contentDescription = "Добавить код",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
 
                             IconButton(onClick = {
-                                xmlValue =
-                                    insertAtCursor(xmlValue, "<code language=\"cpp\">\n// код\n</code>")
-                            }, modifier = Modifier.size(36.dp)) {
+                                val insertText = "<table>\n" +
+                                        "| № | Имя  | Фамилия |\n" +
+                                        "|---|------|---------|\n" +
+                                        "| 1 | Иван | Иванов  |\n" +
+                                        "| 2 | Петр | Петров  |\n" +
+                                        "| 3 | Рома | Романов |\n" +
+                                        "</table>\n"
+                                xmlValue = insertAtCursor(xmlValue, insertText)
+                                saveDebounceEditAction(
+                                    lastText,
+                                    xmlValue.text,
+                                    lastSelection,
+                                    xmlValue.selection,
+                                    0L
+                                )
+                            },
+                                modifier = Modifier.size(36.dp)) {
                                 Icon(
-                                    imageVector = Icons.Filled.Code,
+                                    painter = painterResource(id = R.drawable.ic_table),
                                     contentDescription = "Добавить code",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+
+                            IconButton(
+                                enabled = undoStack.isNotEmpty(),
+                                onClick = {
+                                    undo()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Undo,
+                                    contentDescription = "Отменить",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
 
                             IconButton(
+                                enabled = redoStack.isNotEmpty(),
                                 onClick = {
-                                    xmlValue = indentSelection(xmlValue)
+                                    redo()
                                 },
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
-                                    Icons.AutoMirrored.Filled.FormatIndentIncrease,
-                                    contentDescription = "Отступ",
+                                    Icons.AutoMirrored.Filled.Redo,
+                                    contentDescription = "Вернуть отмену",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
 
-                            IconButton(
-                                onClick = {
-                                    xmlValue = unindentSelection(xmlValue)
-                                },
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.FormatIndentDecrease,
-                                    contentDescription = "Убрать отступ",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+//                            IconButton(
+//                                onClick = {
+//                                    xmlValue = indentSelection(xmlValue)
+//                                },
+//                                modifier = Modifier.size(36.dp)
+//                            ) {
+//                                Icon(
+//                                    Icons.AutoMirrored.Filled.FormatIndentIncrease,
+//                                    contentDescription = "Отступ",
+//                                    modifier = Modifier.size(18.dp)
+//                                )
+//                            }
+//
+//                            IconButton(
+//                                onClick = {
+//                                    xmlValue = unindentSelection(xmlValue)
+//                                },
+//                                modifier = Modifier.size(36.dp)
+//                            ) {
+//                                Icon(
+//                                    Icons.AutoMirrored.Filled.FormatIndentDecrease,
+//                                    contentDescription = "Убрать отступ",
+//                                    modifier = Modifier.size(18.dp)
+//                                )
+//                            }
 
                             VerticalDivider(
                                 modifier = Modifier.height(36.dp),
@@ -798,6 +1144,62 @@ fun AddEditMaterialScreen(
 
 @Composable
 private fun TagsInfoDialog(onDismiss: () -> Unit) {
+
+    val inlineContent = mapOf(
+        "sectionIcon" to InlineTextContent(
+            placeholder = Placeholder(
+                width = 20.sp,
+                height = 20.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+            )
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_section),
+                contentDescription = null,
+                modifier = Modifier.size(15.dp)
+            )
+        },
+        "texIcon" to InlineTextContent(
+            placeholder = Placeholder(
+                width = 20.sp,
+                height = 20.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+            )
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_tex),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        "codeIcon" to InlineTextContent(
+            placeholder = Placeholder(
+                width = 20.sp,
+                height = 20.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+            )
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_code),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        "tableIcon" to InlineTextContent(
+            placeholder = Placeholder(
+                width = 20.sp,
+                height = 20.sp,
+                placeholderVerticalAlign = PlaceholderVerticalAlign.Center
+            )
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.ic_table),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+        },
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = { TextButton(onClick = onDismiss) { Text("Закрыть") } },
@@ -817,78 +1219,105 @@ private fun TagsInfoDialog(onDismiss: () -> Unit) {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("2) <section> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("sectionIcon", "icon")
+                        append(") ")
                         append("- секция(параграф) материала. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("3) <title> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("sectionIcon", "icon")
+                        append(") ")
                         append("- заголовок материала или секции. Количество: по одному для каждого")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("4) <content> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("sectionIcon", "icon")
+                        append(") ")
                         append("- основное содержимое секции, можно встраивать в текст inline тэги. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("5) <example> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("sectionIcon", "icon")
+                        append(") ")
                         append("- пример в секции, можно встраивать в текст inline тэги. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("6) <code> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("codeIcon", "icon")
+                        append(") ")
                         append(
                             "- блок с кодом в основном содержимом или примере, имеет необязательный атрибут language" +
                                     " для указания языка программирования. Код пишется от начала строки! Количество: неограниченно"
                         )
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("7) <inline-code> ")
                         pop()
+                        append("(удерживать: ")
+                        appendInlineContent("codeIcon", "icon")
+                        append(") ")
                         append(
                             "- код в тексте основного содержимого или примера, имеет необязательный атрибут language" +
                                     "для указания языка программирования. Количество: неограниченно"
                         )
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("8) <tex> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("texIcon", "icon")
+                        append(") ")
                         append("- формула в формате KaTeX в основном содержимом или примере. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("9) <inline-tex> ")
                         pop()
+                        append("(удерживать: ")
+                        appendInlineContent("texIcon", "icon")
+                        append(") ")
                         append("- инлайн формула в формате KaTeX в основном содержимом или примере. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
                         pushStyle(SpanStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold))
                         append("10) <table> ")
                         pop()
+                        append("(нажать: ")
+                        appendInlineContent("tableIcon", "icon")
+                        append(") ")
                         append("- текстовый формат таблицы, Markdown-подобный синтаксис. Количество: неограниченно")
-                    }, fontSize = 14.sp)
+                    }, fontSize = 14.sp, inlineContent = inlineContent)
                 }
                 item {
                     Text(buildAnnotatedString {
@@ -1406,13 +1835,13 @@ fun highlightXML(input: String, darkMode: Boolean = false): AnnotatedString {
     val builder = AnnotatedString.Builder()
 
     // Цвета для разных элементов
-    val tagColor = if(darkMode) Color(0xFF4FC3F7) else Color(0xFF0017DA)
+    val defaultTagColor = if(darkMode) Color(0xFF4FC3F7) else Color(0xFF0017DA)
     val attrColor = if(darkMode) Color(0xFF81C784) else Color(0xFF077709)
     val valueColor = if(darkMode) Color(0xFFFFB74D) else Color(0xFFC97802)
     val errorBg = if(darkMode) Color(0xFFA64249) else Color(0xFFFFCDD2)
 
     var lastIndex = 0
-    val tagsRegex = Regex("""</?(material|section|title|content|example|code|inline-code|table|inline-tex|tex)(\b[^\r\n>]*)?>""",
+    val tagsRegex = Regex("""</?(material|section|title|content|example|code|inline-code|table|inline-tex|tex|br)(\b[^\r\n>]*)?>""",
         setOf(RegexOption.IGNORE_CASE))
 
     val matches = mutableListOf<MatchResult>()
@@ -1426,40 +1855,97 @@ fun highlightXML(input: String, darkMode: Boolean = false): AnnotatedString {
         group.find { it.third } ?: group.first()
     }.toMutableList()
 
+    var prevTag = ""
     for (match in matchesList) {
         val range = match.first
         if (lastIndex < range.first) {
-            builder.append(input.substring(lastIndex, range.first))
+
+            val spanStyle = if(Regex("""<title(\b[^\r\n>]*)?>""").matches(prevTag))
+                SpanStyle(
+                    color = if(darkMode) Color(0xFFd6d8ff) else Color(0xFF555aaf),
+//                    fontStyle = FontStyle.Italic,
+                    fontWeight = FontWeight.Bold
+                )
+            else if (Regex("""<(code|inline-code)(\b[^\r\n>]*)?>""").matches(prevTag))
+                SpanStyle(
+                    color = if(darkMode) Color(0xFFdbadff) else Color(0xFFA12CFF),
+//                    fontStyle = FontStyle.Italic,
+                    fontWeight = FontWeight.Bold
+                )
+            else if (Regex("""<(tex|inline-tex)(\b[^\r\n>]*)?>""").matches(prevTag))
+                SpanStyle(
+                    color = if(darkMode) Color(0xFFfdb581) else Color(0xFFc26c2e),
+//                    fontStyle = FontStyle.Italic,
+                    fontWeight = FontWeight.Bold
+                )
+            else {
+                SpanStyle(color = Color.Unspecified)
+            }
+
+            builder.withStyle(spanStyle) {
+                builder.append(input.substring(lastIndex, range.first))
+            }
         }
+        prevTag = match.second
+
+        val customTagColor = if(Regex("""</?(content|example)(\b[^\r\n>]*)?>""").matches(match.second))
+            if(darkMode) Color(0xFF4ff939) else Color(0xFF10A600)
+        else if(Regex("""</?section(\b[^\r\n>]*)?>""").matches(match.second))
+            if(darkMode) Color(0xFF4ff939) else Color(0xFF10A600)
+        else if(Regex("""</?title(\b[^\r\n>]*)?>""").matches(match.second))
+            if(darkMode) Color(0xFF4ff939) else Color(0xFF10A600)
+        else
+            defaultTagColor
+
 
         val indexSpace = match.second.indexOf(' ')
         if(indexSpace != -1) {
             val tagStartText = match.second.take(indexSpace)
-            builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+            builder.withStyle(SpanStyle(
+                color = customTagColor,
+                background = if (match.third) errorBg else Color.Unspecified,
+                fontWeight = FontWeight.ExtraBold
+            )) {
                 append(tagStartText)
             }
             val indexEqual = match.second.indexOf('=', indexSpace)
             if(indexEqual != -1){
                 val attrText = match.second.substring(indexSpace, indexEqual + 1)
-                builder.withStyle(SpanStyle(color = attrColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                builder.withStyle(SpanStyle(
+                    color = attrColor,
+                    background = if (match.third) errorBg else Color.Unspecified,
+                    fontWeight = FontWeight.ExtraBold
+                )) {
                     append(attrText)
                 }
                 val indexCloseTag = match.second.indexOf('>', indexSpace)
                 if(indexCloseTag != -1){
                     val valueAttrText = match.second.substring(indexEqual + 1, indexCloseTag)
-                    builder.withStyle(SpanStyle(color = valueColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                    builder.withStyle(SpanStyle(
+                        color = valueColor,
+                        background = if (match.third) errorBg else Color.Unspecified,
+                        fontWeight = FontWeight.ExtraBold
+                    )) {
                         append(valueAttrText)
                     }
 
                     val closeTagText = match.second.substring(indexCloseTag)
-                    builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+                    builder.withStyle(SpanStyle(
+                        color = customTagColor,
+                        background = if (match.third) errorBg else Color.Unspecified,
+                        fontWeight = FontWeight.ExtraBold
+                    )) {
                         append(closeTagText)
                     }
                 }
             }
         }
         else{
-            builder.withStyle(SpanStyle(color = tagColor, background = if (match.third) errorBg else Color.Unspecified)) {
+            builder.withStyle(SpanStyle(
+                color = customTagColor,
+                background = if (match.third) errorBg else Color.Unspecified,
+                fontWeight = FontWeight.ExtraBold
+            )) {
                 append(match.second)
             }
         }
